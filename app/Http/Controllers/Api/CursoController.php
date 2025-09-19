@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 class CursoController extends Controller
 {
     /**
+     * Este es un comentario de prueba para github
      * 📂 Listar cursos
      * - Profesor: solo sus cursos
      * - Admin: todos
