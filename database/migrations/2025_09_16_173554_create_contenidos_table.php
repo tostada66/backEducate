@@ -9,17 +9,37 @@ return new class extends Migration {
         Schema::create('contenidos', function (Blueprint $table) {
             $table->bigIncrements('idcontenido');
             $table->unsignedBigInteger('idclase');
+
             $table->string('titulo', 180);
             $table->text('descripcion')->nullable();
-            $table->string('tipo', 50)->default('texto'); // texto, video, pdf, link
-            $table->string('url', 255)->nullable(); // enlace archivo/video/pdf
-            $table->unsignedInteger('orden')->default(1);
+
+            // Tipo de contenido: texto, video, pdf, link, quiz, etc.
+            $table->string('tipo', 50)->default('texto');
+
+            // Enlace o archivo (ruta en storage o URL externa)
+            $table->string('url', 255)->nullable();
+
+            // Duración en minutos/segundos (solo aplica si es video)
+            $table->unsignedInteger('duracion')->nullable();
+
+            // 👇 cambiado de unsignedInteger() a integer()
+            $table->integer('orden')->default(1);
+
             $table->enum('estado', ['borrador','publicado'])->default('borrador');
+
             $table->timestamps();
             $table->softDeletes();
 
-            $table->foreign('idclase')->references('idclase')->on('clases')->cascadeOnDelete();
+            // Relación con clases
+            $table->foreign('idclase')
+                ->references('idclase')->on('clases')
+                ->cascadeOnDelete();
+
+            // Evita orden duplicado dentro de la misma clase
             $table->unique(['idclase','orden']);
+
+            // Índice para optimizar búsquedas por clase
+            $table->index('idclase');
         });
     }
 

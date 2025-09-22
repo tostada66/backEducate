@@ -13,7 +13,7 @@ class Clase extends Model
     protected $primaryKey = 'idclase';
 
     protected $fillable = [
-        'idcurso',
+        'idunidad',
         'titulo',
         'descripcion',
         'orden',
@@ -22,19 +22,26 @@ class Clase extends Model
 
     protected $dates = ['deleted_at'];
 
-    /**
-     * Relación: una clase tiene muchos contenidos
-     */
+    // 👇 Se incluirá automáticamente en JSON
+    protected $appends = ['duracion_total'];
+
+    // 🔹 Relación: una clase tiene muchos contenidos
     public function contenidos()
     {
         return $this->hasMany(Contenido::class, 'idclase', 'idclase');
     }
 
-    /**
-     * Relación con curso
-     */
-    public function curso()
+    // 🔹 Relación: una clase pertenece a una unidad
+    public function unidad()
     {
-        return $this->belongsTo(Curso::class, 'idcurso', 'idcurso');
+        return $this->belongsTo(Unidad::class, 'idunidad', 'idunidad');
+    }
+
+    // 🔹 Accessor: duración total de la clase (suma de contenidos tipo video)
+    public function getDuracionTotalAttribute()
+    {
+        return $this->contenidos()
+            ->where('tipo', 'video')
+            ->sum('duracion') ?? 0; // si no hay nada, devuelve 0
     }
 }

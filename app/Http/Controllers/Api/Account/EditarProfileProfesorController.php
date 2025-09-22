@@ -45,9 +45,18 @@ class EditarProfileProfesorController extends Controller
             'web_url'       => ['sometimes','nullable','url','max:255'],
             'bio'           => ['sometimes','nullable','string'],
             'especialidad'  => ['sometimes','nullable','string','max:120'],
+
+            // ✅ Nuevos campos profesor
+            'direccion'     => ['sometimes','nullable','string','max:150'],
+            'pais'          => ['sometimes','nullable','string','max:100'],
+            'empresa'       => ['sometimes','nullable','string','max:150'],
+            'cargo'         => ['sometimes','nullable','string','max:120'],
+            'fecha_inicio'  => ['sometimes','nullable','date'],
+            'fecha_fin'     => ['sometimes','nullable','date'],
+            'detalles'      => ['sometimes','nullable','string'],
         ]);
 
-        // actualizar datos básicos
+        // actualizar datos básicos del usuario
         $user->fill(collect($data)->only([
             'nombres','apellidos','correo','nombreusuario','telefono'
         ])->toArray());
@@ -60,15 +69,22 @@ class EditarProfileProfesorController extends Controller
         ])->toArray());
         $perfil->save();
 
-        // actualizar profesor
+        // actualizar datos de profesor
         if ($user->rolRel && $user->rolRel->nombre === 'profesor') {
             $profesor = Profesor::firstOrCreate(['idusuario' => $user->idusuario]);
-            if (isset($data['especialidad'])) {
-                $profesor->especialidad = $data['especialidad'];
-            }
-            if (isset($data['bio'])) {
-                $profesor->bio = $data['bio'];
-            }
+
+            $profesor->fill(collect($data)->only([
+                'especialidad',
+                'bio',
+                'direccion',
+                'pais',
+                'empresa',
+                'cargo',
+                'fecha_inicio',
+                'fecha_fin',
+                'detalles'
+            ])->toArray());
+
             $profesor->save();
         }
 
@@ -157,6 +173,13 @@ class EditarProfileProfesorController extends Controller
             'bio'           => $user->profesor->bio
                                 ?? $user->perfil->bio
                                 ?? null,
+            'direccion'     => $user->profesor->direccion ?? null,
+            'pais'          => $user->profesor->pais ?? null,
+            'empresa'       => $user->profesor->empresa ?? null,
+            'cargo'         => $user->profesor->cargo ?? null,
+            'fecha_inicio'  => $user->profesor->fecha_inicio ?? null,
+            'fecha_fin'     => $user->profesor->fecha_fin ?? null,
+            'detalles'      => $user->profesor->detalles ?? null,
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Usuario;
 use App\Models\PerfilUsuario;
 use App\Models\Estudiante;
+use App\Models\Categoria;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -63,12 +64,14 @@ class EditarProfileController extends Controller
         $perfil->save();
 
         // actualizar estudiante
-        if ($user->rolRel && $user->rolRel->nombre === 'Estudiante') {
+        if ($user->rolRel && strtolower($user->rolRel->nombre) === 'estudiante') {
             $estudiante = Estudiante::firstOrCreate(['idusuario' => $user->idusuario]);
+
             if (isset($data['nivelacademico'])) {
                 $estudiante->nivelacademico = $data['nivelacademico'];
                 $estudiante->save();
             }
+
             if (isset($data['categorias'])) {
                 $estudiante->categorias()->sync($data['categorias']);
             }
@@ -76,7 +79,9 @@ class EditarProfileController extends Controller
 
         return response()->json([
             'ok'   => true,
-            'user' => $this->formatUserResponse($user->fresh(['perfil','estudiante.categorias','rolRel']))
+            'user' => $this->formatUserResponse(
+                $user->fresh(['perfil','estudiante.categorias','rolRel'])
+            )
         ]);
     }
 
@@ -89,7 +94,7 @@ class EditarProfileController extends Controller
 
         $data = $request->validate([
             'current_password' => ['required'],
-            'new_password'     => ['required','string','min:8','confirmed'], // necesita new_password_confirmation
+            'new_password'     => ['required','string','min:8','confirmed'],
         ]);
 
         if (!Hash::check($data['current_password'], $user->password)) {
@@ -138,6 +143,22 @@ class EditarProfileController extends Controller
      */
     private function formatUserResponse($user)
     {
+        // Todas las categorías disponibles
+        $todas = Categoria::all(['idcategoria','nombre']);
+
+        // Marcar seleccionadas
+        $seleccionadas = $user->estudiante
+            ? $user->estudiante->categorias->pluck('idcategoria')->toArray()
+            : [];
+
+        $categorias = $todas->map(function ($cat) use ($seleccionadas) {
+            return [
+                'idcategoria' => $cat->idcategoria,
+                'nombre'      => $cat->nombre,
+                'seleccionado'=> in_array($cat->idcategoria, $seleccionadas),
+            ];
+        });
+
         return [
             'idusuario'      => $user->idusuario,
             'nombres'        => $user->nombres,
@@ -155,12 +176,7 @@ class EditarProfileController extends Controller
 
             // estudiante
             'nivelacademico' => $user->estudiante->nivelacademico ?? null,
-            'categorias'     => $user->estudiante
-                ? $user->estudiante->categorias->map(fn($c) => [
-                    'idcategoria' => $c->idcategoria,
-                    'nombre'      => $c->nombre,
-                ])
-                : [],
+            'categorias'     => $categorias,
         ];
     }
 }
