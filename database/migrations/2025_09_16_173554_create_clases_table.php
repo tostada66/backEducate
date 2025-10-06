@@ -9,20 +9,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('clases', function (Blueprint $table) {
-            $table->id('idclase');
+            $table->bigIncrements('idclase');
             $table->unsignedBigInteger('idunidad');
 
-            $table->string('titulo');
+            // 📚 Datos de la clase
+            $table->string('titulo', 180);
             $table->text('descripcion')->nullable();
-
-            // 👇 antes estaba ->unsigned(), ya lo quitamos
             $table->integer('orden')->default(1);
 
-            $table->enum('estado', ['borrador', 'publicado'])->default('borrador');
+            // ⚙️ Estado — igual que cursos y unidades
+            $table->enum('estado', [
+                'borrador',              // Recién creada
+                'en_revision',           // En revisión por el admin
+                'oferta_enviada',        // Admin envió oferta (solo reflejo del curso)
+                'pendiente_aceptacion',  // Esperando respuesta del profesor
+                'publicado',             // Activa y visible
+                'rechazado',             // Rechazada por admin
+                'archivado'              // Desactivada o antigua
+            ])->default('borrador');
 
-            $table->softDeletes();
+            // 🕒 Timestamps y SoftDeletes
             $table->timestamps();
+            $table->softDeletes();
 
+            // 🔗 Relación
             $table->foreign('idunidad')
                   ->references('idunidad')
                   ->on('unidades')

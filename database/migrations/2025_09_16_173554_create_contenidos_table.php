@@ -10,35 +10,49 @@ return new class extends Migration {
             $table->bigIncrements('idcontenido');
             $table->unsignedBigInteger('idclase');
 
+            // 📘 Datos principales
             $table->string('titulo', 180);
             $table->text('descripcion')->nullable();
 
-            // Tipo de contenido: texto, video, pdf, link, quiz, etc.
+            // 🎥 Tipo de contenido: texto, video, pdf, link, quiz, etc.
             $table->string('tipo', 50)->default('texto');
 
-            // Enlace o archivo (ruta en storage o URL externa)
+            // 📁 Ruta del archivo o URL externa
             $table->string('url', 255)->nullable();
 
-            // Duración en minutos/segundos (solo aplica si es video)
+            // 🖼 Miniatura (para videos)
+            $table->string('miniatura', 255)->nullable();
+
+            // ⏱ Duración en segundos (videos)
             $table->unsignedInteger('duracion')->nullable();
 
-            // 👇 cambiado de unsignedInteger() a integer()
+            // 🔢 Orden de aparición en la clase
             $table->integer('orden')->default(1);
 
-            $table->enum('estado', ['borrador','publicado'])->default('borrador');
+            // ⚙️ Estado (coherente con cursos/unidades/clases)
+            $table->enum('estado', [
+                'borrador',              // Recién creado
+                'en_revision',           // En revisión
+                'oferta_enviada',        // Oferta enviada
+                'pendiente_aceptacion',  // Esperando respuesta
+                'publicado',             // Visible en plataforma
+                'rechazado',             // Rechazado por revisión
+                'archivado'              // Antiguo o inactivo
+            ])->default('borrador');
 
+            // 🕒 Fechas
             $table->timestamps();
             $table->softDeletes();
 
-            // Relación con clases
+            // 🔗 Relaciones
             $table->foreign('idclase')
                 ->references('idclase')->on('clases')
                 ->cascadeOnDelete();
 
-            // Evita orden duplicado dentro de la misma clase
-            $table->unique(['idclase','orden']);
+            // 🧩 Restricción única: no repetir orden dentro de una clase
+            $table->unique(['idclase', 'orden']);
 
-            // Índice para optimizar búsquedas por clase
+            // ⚡ Índice de búsqueda
             $table->index('idclase');
         });
     }

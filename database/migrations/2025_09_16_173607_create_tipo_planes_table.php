@@ -11,8 +11,12 @@ return new class extends Migration {
             $table->string('nombre', 100)->unique();
             $table->string('descripcion', 255)->nullable();
             $table->decimal('precio', 10, 2);
+            $table->unsignedInteger('duracion'); // 🔹 duración en meses
             $table->timestamps();
         });
     }
-    public function down(): void { Schema::dropIfExists('tipo_planes'); }
+
+    public function down(): void {
+        Schema::dropIfExists('tipo_planes');
+    }
 };

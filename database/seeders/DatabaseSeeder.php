@@ -14,14 +14,11 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CategoriaSeeder::class,
             RolesSeeder::class,
-            CatalogosSeeder::class,
+            TipoPlanesSeeder::class, // 💳 tipos de planes
+            TipoPagoSeeder::class,   // 💰 tipos de pago
+            AdminSeeder::class,      // 👑 usuario administrador
+            ProfesorSeeder::class,   // 👨‍🏫 profesor de prueba
+            EstudianteSeeder::class, // 🎓 estudiante de prueba
         ]);
-
-        // \App\Models\User::factory(10)->create();
-
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
     }
 }

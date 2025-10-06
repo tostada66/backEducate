@@ -24,7 +24,9 @@ class Unidad extends Model
 
     protected $appends = ['duracion_total'];
 
-    // 🔹 Relaciones
+    /* ───────────────────────────────
+     * 🔗 RELACIONES
+     * ─────────────────────────────── */
     public function curso()
     {
         return $this->belongsTo(Curso::class, 'idcurso', 'idcurso');
@@ -35,20 +37,45 @@ class Unidad extends Model
         return $this->hasMany(Clase::class, 'idunidad', 'idunidad');
     }
 
-    // 🔹 Accessor dinámico: duración total de la unidad
+    /* ───────────────────────────────
+     * ⏱️ ACCESSOR: Duración total
+     * ─────────────────────────────── */
     public function getDuracionTotalAttribute()
     {
-        // Si ya cargaste las clases, calcula en memoria
         if ($this->relationLoaded('clases')) {
-            return $this->clases->sum(
-                fn ($clase) => $clase->duracion_total
-            );
+            return $this->clases->sum(fn($clase) => $clase->duracion_total);
         }
 
-        // Si no, carga con contenidos en una sola consulta
         return $this->clases()
             ->with('contenidos')
             ->get()
-            ->sum(fn ($clase) => $clase->duracion_total);
+            ->sum(fn($clase) => $clase->duracion_total);
+    }
+
+    /* ───────────────────────────────
+     * 🔁 SINCRONIZAR ESTADOS AUTOMÁTICAMENTE
+     * ─────────────────────────────── */
+    protected static function booted()
+    {
+        static::updated(function ($unidad) {
+            // Solo si realmente cambió el estado
+            if ($unidad->wasChanged('estado')) {
+                $nuevoEstado = $unidad->estado;
+
+                // 🔹 Obtener clases asociadas
+                $idsClases = \App\Models\Clase::where('idunidad', $unidad->idunidad)
+                    ->pluck('idclase');
+
+                if ($idsClases->isNotEmpty()) {
+                    // 🔁 Actualizar clases
+                    \App\Models\Clase::whereIn('idclase', $idsClases)
+                        ->update(['estado' => $nuevoEstado]);
+
+                    // 🔁 Actualizar contenidos
+                    \App\Models\Contenido::whereIn('idclase', $idsClases)
+                        ->update(['estado' => $nuevoEstado]);
+                }
+            }
+        });
     }
 }

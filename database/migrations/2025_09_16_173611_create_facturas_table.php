@@ -21,6 +21,7 @@ return new class extends Migration
             $table->decimal('total', 10, 2);
             $table->char('moneda', 3)->default('BOB');
             $table->string('referencia', 100)->nullable();
+            $table->string('nombre_factura', 150)->nullable(); // 👈 a nombre de quién sale la factura
             $table->string('nit', 20)->nullable();
             $table->string('razon_social', 120)->nullable();
             $table->dateTime('fecha')->useCurrent();

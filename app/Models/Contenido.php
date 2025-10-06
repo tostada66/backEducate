@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Contenido extends Model
 {
@@ -17,29 +16,61 @@ class Contenido extends Model
         'idclase',
         'titulo',
         'descripcion',
-        'tipo',
-        'url',
-        'duracion',   // 👈 lo agregamos
+        'tipo',        // video, imagen, documento, etc.
+        'url',         // archivo principal
+        'miniatura',   // opcional, solo si es video
+        'duracion',    // en segundos o minutos (según definas)
         'orden',
         'estado'
     ];
 
     protected $dates = ['deleted_at'];
 
-    // 👉 Accessor para incluir URL pública automáticamente
-    protected $appends = ['url_publica'];
+    protected $appends = ['url_publica', 'miniatura_publica'];
 
+    /* ───────────────────────────────
+     * 🔗 RELACIONES
+     * ─────────────────────────────── */
+    public function clase()
+    {
+        return $this->belongsTo(Clase::class, 'idclase', 'idclase');
+    }
+
+    /* ───────────────────────────────
+     * 🌐 ACCESSORS
+     * ─────────────────────────────── */
     public function getUrlPublicaAttribute()
     {
         if ($this->url && !filter_var($this->url, FILTER_VALIDATE_URL)) {
-            return Storage::url($this->url);
+            return asset('storage/' . ltrim($this->url, '/'));
         }
         return $this->url;
     }
 
-    // 🔹 Relación: un contenido pertenece a una clase
-    public function clase()
+    public function getMiniaturaPublicaAttribute()
     {
-        return $this->belongsTo(Clase::class, 'idclase', 'idclase');
+        if ($this->miniatura && !filter_var($this->miniatura, FILTER_VALIDATE_URL)) {
+            return asset('storage/' . ltrim($this->miniatura, '/'));
+        }
+        return $this->miniatura;
+    }
+
+    /* ───────────────────────────────
+     * 🔁 SINCRONIZAR ESTADO HACIA ARRIBA (opcional)
+     * ─────────────────────────────── */
+    protected static function booted()
+    {
+        static::updated(function ($contenido) {
+            // Solo si realmente cambió el estado
+            if ($contenido->wasChanged('estado')) {
+                $clase = $contenido->clase;
+
+                // Evitar bucles infinitos: solo si el estado de la clase es distinto
+                if ($clase && $clase->estado !== $contenido->estado) {
+                    $clase->estado = $contenido->estado;
+                    $clase->save();
+                }
+            }
+        });
     }
 }

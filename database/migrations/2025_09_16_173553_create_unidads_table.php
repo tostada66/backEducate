@@ -15,20 +15,28 @@ return new class extends Migration {
             $table->text('descripcion')->nullable();
             $table->text('objetivos')->nullable();
 
-            // 🖼 Imagen (opcional, como en cursos)
+            // 🖼 Imagen (opcional)
             $table->string('imagen', 255)->nullable();
 
-            // ⏱ Duración estimada (opcional, suma de clases de la unidad)
+            // ⏱ Duración estimada (suma de clases de la unidad)
             $table->integer('duracion_estimada')->nullable();
 
-            // ⚙️ Estado
-            $table->enum('estado', ['borrador','publicado'])->default('borrador');
+            // ⚙️ Estado (mismos valores que cursos)
+            $table->enum('estado', [
+                'borrador',              // Recién creada
+                'en_revision',           // En revisión por admin
+                'oferta_enviada',        // Oferta enviada
+                'pendiente_aceptacion',  // Esperando decisión del profesor
+                'publicado',             // Activa y visible
+                'rechazado',             // Rechazada
+                'archivado'              // No disponible
+            ])->default('borrador');
 
-            // Timestamps
+            // 🕒 Timestamps y soft delete
             $table->timestamps();
             $table->softDeletes();
 
-            // Relación con cursos
+            // 🔗 Relación con cursos
             $table->foreign('idcurso')
                   ->references('idcurso')->on('cursos')
                   ->cascadeOnDelete();

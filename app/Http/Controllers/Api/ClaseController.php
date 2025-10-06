@@ -22,6 +22,8 @@ class ClaseController extends Controller
             ->orderBy('orden')
             ->get();
 
+        $clases->transform(fn($c) => $this->mapUrls($c));
+
         return response()->json($clases);
     }
 
@@ -31,6 +33,20 @@ class ClaseController extends Controller
     public function store(Request $request, $idcurso, $idunidad)
     {
         $curso = Curso::findOrFail($idcurso);
+
+        // ❌ Bloqueo si el curso no se puede editar
+        if (in_array($curso->estado, [
+            'publicado',
+            'en_revision',
+            'oferta_enviada',
+            'pendiente_aceptacion'
+        ])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes añadir clases mientras el curso esté en revisión o publicado'
+            ], 403);
+        }
+
         $unidad = $curso->unidades()->findOrFail($idunidad);
 
         $data = $request->validate([
@@ -49,7 +65,7 @@ class ClaseController extends Controller
             'estado'      => $data['estado'] ?? 'borrador',
         ]);
 
-        return response()->json($clase->load('contenidos'), 201);
+        return response()->json($this->mapUrls($clase->load('contenidos')), 201);
     }
 
     /**
@@ -64,7 +80,7 @@ class ClaseController extends Controller
             ->with('contenidos')
             ->findOrFail($idclase);
 
-        return response()->json($clase);
+        return response()->json($this->mapUrls($clase));
     }
 
     /**
@@ -73,6 +89,20 @@ class ClaseController extends Controller
     public function update(Request $request, $idcurso, $idunidad, $idclase)
     {
         $curso = Curso::findOrFail($idcurso);
+
+        // ❌ Bloqueo si curso no editable
+        if (in_array($curso->estado, [
+            'publicado',
+            'en_revision',
+            'oferta_enviada',
+            'pendiente_aceptacion'
+        ])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes modificar clases mientras el curso esté en revisión o publicado'
+            ], 403);
+        }
+
         $unidad = $curso->unidades()->findOrFail($idunidad);
         $clase = $unidad->clases()->findOrFail($idclase);
 
@@ -85,15 +115,29 @@ class ClaseController extends Controller
 
         $clase->update($data);
 
-        return response()->json($clase->load('contenidos'));
+        return response()->json($this->mapUrls($clase->load('contenidos')));
     }
 
     /**
-     * 🗑 Eliminar (SoftDelete) clase de una unidad
+     * 🗑 Eliminar clase de una unidad
      */
     public function destroy($idcurso, $idunidad, $idclase)
     {
         $curso = Curso::findOrFail($idcurso);
+
+        // ❌ Bloqueo si curso no editable
+        if (in_array($curso->estado, [
+            'publicado',
+            'en_revision',
+            'oferta_enviada',
+            'pendiente_aceptacion'
+        ])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes eliminar clases mientras el curso esté en revisión o publicado'
+            ], 403);
+        }
+
         $unidad = $curso->unidades()->findOrFail($idunidad);
         $clase = $unidad->clases()->findOrFail($idclase);
 
@@ -111,6 +155,20 @@ class ClaseController extends Controller
     public function cambiarOrden(Request $request, $idcurso, $idunidad, $idclase)
     {
         $curso  = Curso::findOrFail($idcurso);
+
+        // ❌ Bloqueo si curso no editable
+        if (in_array($curso->estado, [
+            'publicado',
+            'en_revision',
+            'oferta_enviada',
+            'pendiente_aceptacion'
+        ])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes reordenar clases mientras el curso esté en revisión o publicado'
+            ], 403);
+        }
+
         $unidad = $curso->unidades()->findOrFail($idunidad);
         $clase  = $unidad->clases()->findOrFail($idclase);
 
@@ -137,22 +195,18 @@ class ClaseController extends Controller
             }
 
             if ($swap) {
-                $tempOrden    = -1; // Valor temporal
+                $tempOrden    = -1;
                 $oldOrden     = $clase->orden;
                 $swapOrden    = $swap->orden;
 
-                // Paso 1: liberar espacio
                 $clase->update(['orden' => $tempOrden]);
-
-                // Paso 2: mover swap
                 $swap->update(['orden' => $oldOrden]);
-
-                // Paso 3: mover clase
                 $clase->update(['orden' => $swapOrden]);
             }
         });
 
-        $clases = $unidad->clases()->orderBy('orden')->get();
+        $clases = $unidad->clases()->with('contenidos')->orderBy('orden')->get();
+        $clases->transform(fn($c) => $this->mapUrls($c));
 
         return response()->json([
             'ok' => true,
@@ -179,6 +233,30 @@ class ClaseController extends Controller
             ->orderBy('orden')
             ->get();
 
+        $clases->transform(fn($c) => $this->mapUrls($c));
+
         return response()->json($clases);
+    }
+
+    /**
+     * 🔧 Mapear URLs públicas de los contenidos y asignar portada de clase
+     */
+    private function mapUrls($clase)
+    {
+        foreach ($clase->contenidos as $contenido) {
+            $contenido->archivo = $contenido->url_publica;
+            $contenido->miniatura_publica = $contenido->miniatura_publica;
+        }
+
+        // 👉 Portada de la clase = miniatura del primer video publicado
+        $video = $clase->contenidos->firstWhere('tipo', 'video');
+        if ($video && $video->miniatura_publica) {
+            $clase->miniatura_publica = $video->miniatura_publica;
+        } else {
+            $imagen = $clase->contenidos->firstWhere('tipo', 'imagen');
+            $clase->miniatura_publica = $imagen ? $imagen->url_publica : null;
+        }
+
+        return $clase;
     }
 }

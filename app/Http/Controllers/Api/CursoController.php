@@ -19,23 +19,18 @@ class CursoController extends Controller
 
         if ($rol === 'profesor') {
             $cursos = Curso::where('idprofesor', $user->profesor->idprofesor)
-                ->with(['profesor', 'unidades.clases', 'categoria'])
+                ->with(['profesor', 'unidades.clases.contenidos', 'categoria'])
                 ->latest()
                 ->paginate(10);
         } elseif ($rol === 'administrador') {
-            $cursos = Curso::with(['profesor', 'unidades.clases', 'categoria'])
+            $cursos = Curso::with(['profesor', 'unidades.clases.contenidos', 'categoria'])
                 ->latest()
                 ->paginate(10);
         } else {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $cursos->getCollection()->transform(function ($curso) {
-            $curso->imagen_url = $curso->imagen
-                ? asset('storage/' . $curso->imagen)
-                : null;
-            return $curso;
-        });
+        $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
 
         return response()->json($cursos);
     }
@@ -61,24 +56,20 @@ class CursoController extends Controller
         ]);
 
         $curso = new Curso();
-        $curso->idprofesor     = $user->profesor->idprofesor;
-        $curso->idcategoria    = $request->idcategoria ?? null;
-        $curso->nombre         = $data['nombre'];
-        $curso->slug           = Str::slug($data['nombre']) . '-' . uniqid();
-        $curso->descripcion    = $data['descripcion'] ?? null;
-        $curso->nivel          = $data['nivel'] ?? null;
-        $curso->estado         = 'borrador';
+        $curso->idprofesor  = $user->profesor->idprofesor;
+        $curso->idcategoria = $request->idcategoria ?? null;
+        $curso->nombre      = $data['nombre'];
+        $curso->slug        = Str::slug($data['nombre']) . '-' . uniqid();
+        $curso->descripcion = $data['descripcion'] ?? null;
+        $curso->nivel       = $data['nivel'] ?? null;
+        $curso->estado      = 'borrador'; // 👈 Estado inicial
 
         if ($request->hasFile('imagen')) {
-            $path = $request->file('imagen')->store('cursos', 'public');
-            $curso->imagen = $path;
+            $curso->imagen = $request->file('imagen')->store('cursos', 'public');
         }
 
         $curso->save();
-
-        $curso->imagen_url = $curso->imagen
-            ? asset('storage/' . $curso->imagen)
-            : null;
+        $this->mapUrls($curso);
 
         return response()->json([
             'ok'    => true,
@@ -87,23 +78,21 @@ class CursoController extends Controller
     }
 
     /**
-     * 👁 Mostrar curso (profesor/admin)
+     * 👁 Mostrar curso (logueado con clases y contenidos)
      */
     public function show(Request $request, $idcurso)
     {
         $user = $request->user();
         $rol  = strtolower($user->rolRel?->nombre);
 
-        $curso = Curso::with(['profesor','unidades.clases','categoria'])
+        $curso = Curso::with(['profesor','unidades.clases.contenidos','categoria'])
             ->findOrFail($idcurso);
 
         if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $curso->imagen_url = $curso->imagen
-            ? asset('storage/' . $curso->imagen)
-            : null;
+        $this->mapUrls($curso);
 
         return response()->json($curso);
     }
@@ -121,12 +110,19 @@ class CursoController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
+        // ❌ No permitir cambios si ya está publicado o en revisión
+        if (in_array($curso->estado, ['publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes modificar un curso que está en revisión o publicado'
+            ], 403);
+        }
+
         $data = $request->validate([
             'nombre'      => 'sometimes|string|max:150',
             'descripcion' => 'nullable|string',
             'nivel'       => 'nullable|string|max:30',
             'imagen'      => 'nullable|file|image|max:2048',
-            'estado'      => 'in:borrador,publicado,archivado',
             'idcategoria' => 'nullable|exists:categorias,idcategoria',
         ]);
 
@@ -134,33 +130,98 @@ class CursoController extends Controller
             $curso->nombre = $data['nombre'];
             $curso->slug   = Str::slug($data['nombre']) . '-' . uniqid();
         }
-        if (isset($data['descripcion'])) {
-            $curso->descripcion = $data['descripcion'];
-        }
-        if (isset($data['nivel'])) {
-            $curso->nivel = $data['nivel'];
-        }
-        if (isset($data['estado'])) {
-            $curso->estado = $data['estado'];
-        }
-        if (isset($data['idcategoria'])) {
-            $curso->idcategoria = $data['idcategoria'];
-        }
+        if (isset($data['descripcion'])) $curso->descripcion = $data['descripcion'];
+        if (isset($data['nivel']))       $curso->nivel       = $data['nivel'];
+        if (isset($data['idcategoria'])) $curso->idcategoria = $data['idcategoria'];
 
         if ($request->hasFile('imagen')) {
-            $path = $request->file('imagen')->store('cursos', 'public');
-            $curso->imagen = $path;
+            $curso->imagen = $request->file('imagen')->store('cursos', 'public');
         }
 
         $curso->save();
-
-        $curso->imagen_url = $curso->imagen
-            ? asset('storage/' . $curso->imagen)
-            : null;
+        $this->mapUrls($curso);
 
         return response()->json([
             'ok'    => true,
             'curso' => $curso->load('categoria')
+        ]);
+    }
+
+    /**
+     * 📤 Enviar curso a revisión (profesor)
+     */
+    public function enviarRevision($idcurso, Request $request)
+    {
+        $curso = Curso::findOrFail($idcurso);
+        $user = $request->user();
+
+        if ($curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        if ($curso->estado !== 'borrador') {
+            return response()->json(['ok' => false, 'message' => 'Solo se pueden enviar cursos en borrador'], 400);
+        }
+
+        $curso->estado = 'en_revision';
+        $curso->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Curso enviado a revisión con éxito',
+            'curso' => $curso
+        ]);
+    }
+
+    /**
+     * ✅ Profesor acepta oferta del admin
+     */
+    public function aceptarOferta($idcurso, Request $request)
+    {
+        $curso = Curso::findOrFail($idcurso);
+        $user = $request->user();
+
+        if ($curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        if ($curso->estado !== 'pendiente_aceptacion') {
+            return response()->json(['ok' => false, 'message' => 'No hay oferta pendiente para aceptar'], 400);
+        }
+
+        $curso->estado = 'publicado';
+        $curso->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Oferta aceptada. El curso ahora está publicado.',
+            'curso' => $curso
+        ]);
+    }
+
+    /**
+     * ❌ Profesor rechaza oferta
+     */
+    public function rechazarOferta($idcurso, Request $request)
+    {
+        $curso = Curso::findOrFail($idcurso);
+        $user = $request->user();
+
+        if ($curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        if ($curso->estado !== 'pendiente_aceptacion') {
+            return response()->json(['ok' => false, 'message' => 'No hay oferta pendiente para rechazar'], 400);
+        }
+
+        $curso->estado = 'rechazado';
+        $curso->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Has rechazado la oferta del administrador.',
+            'curso' => $curso
         ]);
     }
 
@@ -177,88 +238,69 @@ class CursoController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
+        if (in_array($curso->estado, ['publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No puedes eliminar un curso publicado o en revisión'
+            ], 403);
+        }
+
         $curso->delete();
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Curso dado de baja correctamente'
+            'message' => 'Curso eliminado correctamente'
         ]);
     }
 
     /**
-     * ♻️ Restaurar curso
-     */
-    public function restore(Request $request, $idcurso)
-    {
-        $curso = Curso::withTrashed()->findOrFail($idcurso);
-        $user  = $request->user();
-        $rol   = strtolower($user->rolRel?->nombre);
-
-        if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
-            return response()->json(['message' => 'No autorizado'], 403);
-        }
-
-        if ($curso->trashed()) {
-            $curso->restore();
-            return response()->json([
-                'ok'      => true,
-                'message' => 'Curso restaurado correctamente',
-                'curso'   => $curso->load('categoria')
-            ]);
-        }
-
-        return response()->json([
-            'ok'      => false,
-            'message' => 'El curso no estaba eliminado'
-        ], 400);
-    }
-
-    /**
-     * 📖 Catálogo público (para landing / no logueados)
+     * 📖 Catálogo público (solo info básica)
      */
     public function catalogo()
     {
         $cursos = Curso::where('estado', 'publicado')
-            ->with(['profesor','unidades.clases','categoria'])
+            ->with(['profesor','categoria'])
             ->latest()
             ->paginate(10);
 
-        $cursos->getCollection()->transform(function ($curso) {
-            $curso->imagen_url = $curso->imagen
-                ? asset('storage/' . $curso->imagen)
-                : null;
-            return $curso;
-        });
+        $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
 
         return response()->json($cursos);
     }
 
     /**
-     * 🎓 Cursos del estudiante logueado
+     * 👁 Mostrar curso público (con unidades)
      */
-    public function misCursos(Request $request)
+    public function showPublic($idcurso)
     {
-        $user = $request->user();
-        $rol  = strtolower($user->rolRel?->nombre);
+        $curso = Curso::where('estado', 'publicado')
+            ->with(['profesor','categoria','unidades'])
+            ->findOrFail($idcurso);
 
-        if ($rol !== 'estudiante') {
-            return response()->json(['message' => 'Solo estudiantes'], 403);
+        $this->mapUrls($curso);
+        return response()->json($curso);
+    }
+
+    /**
+     * 🔧 Mapear URLs públicas
+     */
+    private function mapUrls($curso)
+    {
+        $curso->imagen_url = $curso->imagen
+            ? asset('storage/' . ltrim($this->cleanPath($curso->imagen), '/'))
+            : asset('storage/default_image.png');
+
+        foreach ($curso->unidades as $unidad) {
+            $unidad->imagen_url = $unidad->imagen
+                ? asset('storage/' . ltrim($this->cleanPath($unidad->imagen), '/'))
+                : asset('storage/default_image.png');
         }
 
-        // aquí puedes filtrar por inscripción si tienes tabla pivote cursos_estudiantes
-        // por ahora, mostramos todos publicados
-        $cursos = Curso::where('estado', 'publicado')
-            ->with(['profesor','unidades.clases','categoria'])
-            ->latest()
-            ->paginate(10);
+        return $curso;
+    }
 
-        $cursos->getCollection()->transform(function ($curso) {
-            $curso->imagen_url = $curso->imagen
-                ? asset('storage/' . $curso->imagen)
-                : null;
-            return $curso;
-        });
-
-        return response()->json($cursos);
+    private function cleanPath($path)
+    {
+        return str_replace([url('storage').'/', config('app.url').'/storage/'], '', $path);
     }
 }

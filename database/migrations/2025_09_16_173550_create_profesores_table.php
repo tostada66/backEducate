@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('profesores', function (Blueprint $table) {
@@ -19,7 +16,7 @@ return new class extends Migration
             $table->text('bio')->nullable();
             $table->string('especialidad', 120)->nullable();
 
-            // ✅ Campos adicionales solicitados
+            // ✅ Campos adicionales
             $table->string('direccion', 150)->nullable();
             $table->string('pais', 100)->nullable();
             $table->string('empresa', 150)->nullable();
@@ -27,6 +24,9 @@ return new class extends Migration
             $table->date('fecha_inicio')->nullable();
             $table->date('fecha_fin')->nullable();
             $table->text('detalles')->nullable();
+
+            // 👇 Nuevo campo para aprobar/rechazar
+            $table->enum('estado_aprobacion', ['pendiente', 'aprobado', 'rechazado'])->default('pendiente');
 
             $table->timestamps();
 
@@ -38,9 +38,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('profesores');

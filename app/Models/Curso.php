@@ -23,11 +23,12 @@ class Curso extends Model
         'estado',
     ];
 
-    // Para incluir automáticamente la duración total en JSON
+    // Incluir automáticamente la duración total en JSON
     protected $appends = ['duracion_total'];
 
-    // 🔹 Relaciones
-
+    /* ───────────────────────────────
+     * 🔗 RELACIONES PRINCIPALES
+     * ─────────────────────────────── */
     public function profesor()
     {
         return $this->belongsTo(Profesor::class, 'idprofesor', 'idprofesor');
@@ -41,6 +42,19 @@ class Curso extends Model
     public function unidades()
     {
         return $this->hasMany(Unidad::class, 'idcurso', 'idcurso');
+    }
+
+    // Curso → Clases (a través de Unidades)
+    public function clases()
+    {
+        return $this->hasManyThrough(
+            Clase::class,
+            Unidad::class,
+            'idcurso',
+            'idunidad',
+            'idcurso',
+            'idunidad'
+        );
     }
 
     public function reviews()
@@ -58,20 +72,72 @@ class Curso extends Model
         return $this->hasMany(Juego::class, 'idcurso', 'idcurso');
     }
 
-    // 🔹 Accessor dinámico: duración total del curso
+    // 📦 Oferta asociada
+    public function oferta()
+    {
+        return $this->hasOne(Oferta::class, 'idcurso', 'idcurso');
+    }
+
+    // 📜 Licencia (cuando se acepta la oferta)
+    public function licencia()
+    {
+        return $this->hasOne(Licencia::class, 'idcurso', 'idcurso');
+    }
+
+    // 🗒️ Observaciones
+    public function observaciones()
+    {
+        return $this->hasMany(Observacion::class, 'idcurso', 'idcurso');
+    }
+
+    /* ───────────────────────────────
+     * ⏱️ ACCESSOR: Duración total
+     * ─────────────────────────────── */
     public function getDuracionTotalAttribute()
     {
-        // Si ya cargaste unidades y clases, calcula en memoria
         if ($this->relationLoaded('unidades')) {
-            return $this->unidades->sum(
-                fn ($unidad) => $unidad->duracion_total
-            );
+            return $this->unidades->sum(fn($unidad) => $unidad->duracion_total);
         }
 
-        // Si no, carga con relaciones necesarias en una sola consulta
         return $this->unidades()
             ->with('clases.contenidos')
             ->get()
-            ->sum(fn ($unidad) => $unidad->duracion_total);
+            ->sum(fn($unidad) => $unidad->duracion_total);
+    }
+
+    /* ───────────────────────────────
+     * 🔁 SINCRONIZAR ESTADOS AUTOMÁTICAMENTE
+     * ─────────────────────────────── */
+    protected static function booted()
+    {
+        static::updated(function ($curso) {
+            // Solo si realmente cambió el estado
+            if ($curso->wasChanged('estado')) {
+                $nuevoEstado = $curso->estado;
+
+                // 🔹 Obtener IDs de unidades
+                $idsUnidades = \App\Models\Unidad::where('idcurso', $curso->idcurso)
+                    ->pluck('idunidad');
+
+                if ($idsUnidades->isNotEmpty()) {
+                    // 🔁 Actualizar unidades
+                    \App\Models\Unidad::whereIn('idunidad', $idsUnidades)
+                        ->update(['estado' => $nuevoEstado]);
+
+                    // 🔹 Obtener IDs de clases
+                    $idsClases = \App\Models\Clase::whereIn('idunidad', $idsUnidades)
+                        ->pluck('idclase');
+
+                    if ($idsClases->isNotEmpty()) {
+                        // 🔁 Actualizar clases y contenidos
+                        \App\Models\Clase::whereIn('idclase', $idsClases)
+                            ->update(['estado' => $nuevoEstado]);
+
+                        \App\Models\Contenido::whereIn('idclase', $idsClases)
+                            ->update(['estado' => $nuevoEstado]);
+                    }
+                }
+            }
+        });
     }
 }

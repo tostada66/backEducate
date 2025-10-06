@@ -22,26 +22,63 @@ class Clase extends Model
 
     protected $dates = ['deleted_at'];
 
-    // 👇 Se incluirá automáticamente en JSON
-    protected $appends = ['duracion_total'];
+    protected $appends = ['duracion_total', 'miniatura_publica'];
 
-    // 🔹 Relación: una clase tiene muchos contenidos
+    /* ───────────────────────────────
+     * 🔗 RELACIONES
+     * ─────────────────────────────── */
     public function contenidos()
     {
         return $this->hasMany(Contenido::class, 'idclase', 'idclase');
     }
 
-    // 🔹 Relación: una clase pertenece a una unidad
     public function unidad()
     {
         return $this->belongsTo(Unidad::class, 'idunidad', 'idunidad');
     }
 
-    // 🔹 Accessor: duración total de la clase (suma de contenidos tipo video)
+    /* ───────────────────────────────
+     * ⏱️ ACCESSOR: Duración total
+     * ─────────────────────────────── */
     public function getDuracionTotalAttribute()
     {
+        if ($this->relationLoaded('contenidos')) {
+            return $this->contenidos
+                ->where('tipo', 'video')
+                ->sum('duracion') ?? 0;
+        }
+
         return $this->contenidos()
             ->where('tipo', 'video')
-            ->sum('duracion') ?? 0; // si no hay nada, devuelve 0
+            ->sum('duracion') ?? 0;
+    }
+
+    /* ───────────────────────────────
+     * 🖼️ ACCESSOR: Miniatura pública
+     * ─────────────────────────────── */
+    public function getMiniaturaPublicaAttribute()
+    {
+        $video = $this->relationLoaded('contenidos')
+            ? $this->contenidos->firstWhere('tipo', 'video')
+            : $this->contenidos()->where('tipo', 'video')->first();
+
+        return $video ? $video->miniatura_publica : null;
+    }
+
+    /* ───────────────────────────────
+     * 🔁 SINCRONIZAR ESTADOS AUTOMÁTICAMENTE
+     * ─────────────────────────────── */
+    protected static function booted()
+    {
+        static::updated(function ($clase) {
+            // Solo si realmente cambió el estado
+            if ($clase->wasChanged('estado')) {
+                $nuevoEstado = $clase->estado;
+
+                // 🔁 Actualizar todos los contenidos asociados
+                \App\Models\Contenido::where('idclase', $clase->idclase)
+                    ->update(['estado' => $nuevoEstado]);
+            }
+        });
     }
 }
