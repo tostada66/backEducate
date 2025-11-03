@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Hash;
 
 class PasswordResetController extends Controller
 {
@@ -18,8 +18,8 @@ class PasswordResetController extends Controller
         $status = Password::sendResetLink(['email' => $request->email]);
 
         return $status === Password::RESET_LINK_SENT
-            ? response()->json(['ok'=>true,'message'=>__($status)])
-            : response()->json(['ok'=>false,'message'=>__($status)], 422);
+            ? response()->json(['ok' => true,'message' => __($status)])
+            : response()->json(['ok' => false,'message' => __($status)], 422);
     }
 
     public function reset(Request $request)
@@ -31,7 +31,7 @@ class PasswordResetController extends Controller
         ]);
 
         $status = Password::reset(
-            $request->only('email','password','password_confirmation','token'),
+            $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user, $password) {
                 $user->forceFill(['password' => Hash::make($password)]);
                 $user->setRememberToken(Str::random(60));
@@ -41,7 +41,7 @@ class PasswordResetController extends Controller
         );
 
         return $status === Password::PASSWORD_RESET
-            ? response()->json(['ok'=>true,'message'=>__($status)])
-            : response()->json(['ok'=>false,'message'=>__($status)], 422);
+            ? response()->json(['ok' => true,'message' => __($status)])
+            : response()->json(['ok' => false,'message' => __($status)], 422);
     }
 }

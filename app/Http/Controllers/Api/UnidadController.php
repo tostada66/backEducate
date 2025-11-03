@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Unidad;
 use App\Models\Curso;
+use App\Models\Matricula;
+use App\Models\Unidad;
 use Illuminate\Http\Request;
 
 class UnidadController extends Controller
@@ -17,11 +18,11 @@ class UnidadController extends Controller
         $curso = Curso::findOrFail($idcurso);
 
         $unidades = $curso->unidades()
-            ->with(['clases.contenidos'])
+            ->with(['clases.contenidos', 'examen'])
             ->orderBy('idunidad')
             ->get();
 
-        $unidades->transform(fn($unidad) => $this->mapUrls($unidad));
+        $unidades->transform(fn ($unidad) => $this->mapUrls($unidad));
 
         return response()->json($unidades);
     }
@@ -33,12 +34,8 @@ class UnidadController extends Controller
     {
         $curso = Curso::findOrFail($idcurso);
 
-        // ❌ No permitir crear si el curso está bloqueado
         if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
+            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
@@ -58,7 +55,7 @@ class UnidadController extends Controller
         $unidad->titulo      = $data['titulo'];
         $unidad->descripcion = $data['descripcion'] ?? null;
         $unidad->objetivos   = $data['objetivos'] ?? null;
-        $unidad->estado      = 'borrador'; // 👈 siempre arranca como borrador
+        $unidad->estado      = 'borrador';
 
         if ($request->hasFile('imagen')) {
             $unidad->imagen = $request->file('imagen')->store('unidades', 'public');
@@ -70,16 +67,47 @@ class UnidadController extends Controller
     }
 
     /**
-     * 👁 Mostrar una unidad específica
+     * 👁 Mostrar una unidad específica (con matrícula y examen)
      */
-    public function show($idcurso, $idunidad)
+    public function show(Request $request, $idcurso, $idunidad)
     {
-        $curso  = Curso::findOrFail($idcurso);
+        $user = $request->user();
+        $curso = Curso::findOrFail($idcurso);
+
+        // 🧩 Incluimos clases, contenidos y examen
         $unidad = $curso->unidades()
-            ->with(['clases.contenidos'])
+            ->with(['clases.contenidos', 'examen'])
             ->findOrFail($idunidad);
 
-        return response()->json($this->mapUrls($unidad));
+        $unidad = $this->mapUrls($unidad);
+
+        // 🧠 Verificar si el usuario está matriculado (solo si es estudiante)
+        $matriculado = false;
+        if ($user && strtolower($user->rolRel?->nombre) === 'estudiante') {
+            $matriculado = Matricula::where('idestudiante', $user->estudiante->idestudiante)
+                ->where('idcurso', $curso->idcurso)
+                ->exists();
+        }
+
+        // ⚙️ Bandera de examen activo
+        $tieneExamen = $unidad->examen && $unidad->examen->activo ? true : false;
+
+        // 📦 Respuesta completa para frontend
+        return response()->json([
+            'idunidad' => $unidad->idunidad,
+            'titulo' => $unidad->titulo,
+            'descripcion' => $unidad->descripcion,
+            'duracion_total' => $unidad->duracion_total,
+            'imagen_url' => $unidad->imagen_url,
+            'clases' => $unidad->clases,
+            'examen' => $unidad->examen,
+            'tiene_examen' => $tieneExamen,
+            'matriculado' => $matriculado,
+            'curso' => [
+                'idcurso' => $curso->idcurso,
+                'nombre' => $curso->nombre
+            ],
+        ]);
     }
 
     /**
@@ -90,12 +118,8 @@ class UnidadController extends Controller
         $curso  = Curso::findOrFail($idcurso);
         $unidad = $curso->unidades()->findOrFail($idunidad);
 
-        // ❌ No permitir actualizar si el curso está bloqueado
         if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
+            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
@@ -110,9 +134,15 @@ class UnidadController extends Controller
             'imagen'      => 'nullable|file|image|max:2048',
         ]);
 
-        if (isset($data['titulo']))      $unidad->titulo      = $data['titulo'];
-        if (isset($data['descripcion'])) $unidad->descripcion = $data['descripcion'];
-        if (isset($data['objetivos']))   $unidad->objetivos   = $data['objetivos'];
+        if (isset($data['titulo'])) {
+            $unidad->titulo      = $data['titulo'];
+        }
+        if (isset($data['descripcion'])) {
+            $unidad->descripcion = $data['descripcion'];
+        }
+        if (isset($data['objetivos'])) {
+            $unidad->objetivos   = $data['objetivos'];
+        }
 
         if ($request->hasFile('imagen')) {
             $unidad->imagen = $request->file('imagen')->store('unidades', 'public');
@@ -128,14 +158,10 @@ class UnidadController extends Controller
      */
     public function destroy($idcurso, $idunidad)
     {
-        $curso  = Curso::findOrFail($idcurso);
+        $curso = Curso::findOrFail($idcurso);
 
-        // ❌ No permitir eliminar si el curso está bloqueado
         if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
+            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
@@ -147,7 +173,7 @@ class UnidadController extends Controller
         $unidad->delete();
 
         return response()->json([
-            'ok'      => true,
+            'ok' => true,
             'message' => 'Unidad eliminada correctamente'
         ]);
     }
@@ -155,19 +181,35 @@ class UnidadController extends Controller
     /**
      * 🎓 Unidades visibles para estudiante (solo publicadas)
      */
-    public function catalogo($idcurso)
+    public function catalogo(Request $request, $idcurso)
     {
+        $user = $request->user();
         $curso = Curso::where('estado', 'publicado')->findOrFail($idcurso);
 
         $unidades = $curso->unidades()
             ->where('estado', 'publicado')
             ->with(['clases' => function ($q) {
                 $q->where('estado', 'publicado')->with('contenidos');
-            }])
+            }, 'examen'])
             ->orderBy('idunidad')
             ->get();
 
-        $unidades->transform(fn($unidad) => $this->mapUrls($unidad));
+        $unidades->transform(function ($unidad) use ($user, $curso) {
+            $unidad = $this->mapUrls($unidad);
+
+            // 🧠 Verificar si el estudiante está matriculado
+            $matriculado = false;
+            if ($user && strtolower($user->rolRel?->nombre) === 'estudiante') {
+                $matriculado = Matricula::where('idestudiante', $user->estudiante->idestudiante)
+                    ->where('idcurso', $curso->idcurso)
+                    ->exists();
+            }
+
+            $unidad->matriculado = $matriculado;
+            $unidad->tiene_examen = $unidad->examen && $unidad->examen->activo ? true : false;
+
+            return $unidad;
+        });
 
         return response()->json($unidades);
     }
@@ -186,11 +228,7 @@ class UnidadController extends Controller
                 if ($clase->relationLoaded('contenidos')) {
                     foreach ($clase->contenidos as $contenido) {
                         $path = $this->cleanPath($contenido->url);
-
-                        $urlPublica = $path
-                            ? asset('storage/' . ltrim($path, '/'))
-                            : null;
-
+                        $urlPublica = $path ? asset('storage/' . ltrim($path, '/')) : null;
                         $contenido->archivo = $urlPublica;
                         $contenido->url_publica = $urlPublica;
                     }
@@ -203,6 +241,6 @@ class UnidadController extends Controller
 
     private function cleanPath($path)
     {
-        return str_replace([url('storage').'/', config('app.url').'/storage/'], '', $path);
+        return str_replace([url('storage') . '/', config('app.url') . '/storage/'], '', $path);
     }
 }

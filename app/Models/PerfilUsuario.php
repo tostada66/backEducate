@@ -10,5 +10,8 @@ class PerfilUsuario extends Model
     protected $primaryKey = 'idperfil';
     protected $fillable = ['idusuario','linkedin_url','github_url','web_url','bio'];
 
-    public function usuario(){ return $this->belongsTo(Usuario::class,'idusuario','idusuario'); }
+    public function usuario()
+    {
+        return $this->belongsTo(Usuario::class, 'idusuario', 'idusuario');
+    }
 }

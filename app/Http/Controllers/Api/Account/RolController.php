@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Rol;
+use Illuminate\Http\Request;
 
 class RolController extends Controller
 {

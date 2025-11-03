@@ -27,14 +27,36 @@ class Unidad extends Model
     /* ───────────────────────────────
      * 🔗 RELACIONES
      * ─────────────────────────────── */
+
+    // 📘 Cada unidad pertenece a un curso
     public function curso()
     {
         return $this->belongsTo(Curso::class, 'idcurso', 'idcurso');
     }
 
+    // 🎥 Cada unidad tiene muchas clases
     public function clases()
     {
         return $this->hasMany(Clase::class, 'idunidad', 'idunidad');
+    }
+
+    // 🧠 Cada unidad puede tener un examen asociado
+    // 🧠 Cada unidad puede tener un examen asociado
+    public function examen()
+    {
+        return $this->hasOne(Examen::class, 'idunidad', 'idunidad');
+    }
+
+    // 🧠 Compatibilidad con progreso (permite acceder como colección)
+    public function examenes()
+    {
+        return $this->hasMany(Examen::class, 'idunidad', 'idunidad');
+    }
+
+    // 🎮 Cada unidad puede tener varios juegos asignados
+    public function juegos()
+    {
+        return $this->hasMany(CursoJuego::class, 'idunidad', 'idunidad');
     }
 
     /* ───────────────────────────────
@@ -43,13 +65,13 @@ class Unidad extends Model
     public function getDuracionTotalAttribute()
     {
         if ($this->relationLoaded('clases')) {
-            return $this->clases->sum(fn($clase) => $clase->duracion_total);
+            return $this->clases->sum(fn ($clase) => $clase->duracion_total);
         }
 
         return $this->clases()
             ->with('contenidos')
             ->get()
-            ->sum(fn($clase) => $clase->duracion_total);
+            ->sum(fn ($clase) => $clase->duracion_total);
     }
 
     /* ───────────────────────────────

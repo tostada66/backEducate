@@ -22,7 +22,7 @@ class ClaseController extends Controller
             ->orderBy('orden')
             ->get();
 
-        $clases->transform(fn($c) => $this->mapUrls($c));
+        $clases->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json($clases);
     }
@@ -206,7 +206,7 @@ class ClaseController extends Controller
         });
 
         $clases = $unidad->clases()->with('contenidos')->orderBy('orden')->get();
-        $clases->transform(fn($c) => $this->mapUrls($c));
+        $clases->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json([
             'ok' => true,
@@ -233,7 +233,7 @@ class ClaseController extends Controller
             ->orderBy('orden')
             ->get();
 
-        $clases->transform(fn($c) => $this->mapUrls($c));
+        $clases->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json($clases);
     }
@@ -247,7 +247,6 @@ class ClaseController extends Controller
             $contenido->archivo = $contenido->url_publica;
             $contenido->miniatura_publica = $contenido->miniatura_publica;
         }
-
         // 👉 Portada de la clase = miniatura del primer video publicado
         $video = $clase->contenidos->firstWhere('tipo', 'video');
         if ($video && $video->miniatura_publica) {

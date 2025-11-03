@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ProgresoClase;
 use App\Models\Matricula;
+use App\Models\ProgresoClase;
 use Illuminate\Http\Request;
 
 class ProgresoClaseController extends Controller

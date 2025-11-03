@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Unidad;
 use App\Models\Usuario;
-use Illuminate\Auth\Access\Response;
 
 class UnidadPolicy
 {

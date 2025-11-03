@@ -11,6 +11,8 @@ class Curso extends Model
 
     protected $table = 'cursos';
     protected $primaryKey = 'idcurso';
+    public $incrementing = true;
+    protected $keyType = 'int';
 
     protected $fillable = [
         'idprofesor',
@@ -21,14 +23,16 @@ class Curso extends Model
         'nivel',
         'imagen',
         'estado',
+        'promedio_resenas',
+        'total_resenas',
     ];
 
-    // Incluir automáticamente la duración total en JSON
     protected $appends = ['duracion_total'];
 
     /* ───────────────────────────────
      * 🔗 RELACIONES PRINCIPALES
      * ─────────────────────────────── */
+
     public function profesor()
     {
         return $this->belongsTo(Profesor::class, 'idprofesor', 'idprofesor');
@@ -44,7 +48,6 @@ class Curso extends Model
         return $this->hasMany(Unidad::class, 'idcurso', 'idcurso');
     }
 
-    // Curso → Clases (a través de Unidades)
     public function clases()
     {
         return $this->hasManyThrough(
@@ -57,9 +60,9 @@ class Curso extends Model
         );
     }
 
-    public function reviews()
+    public function resenas()
     {
-        return $this->hasMany(Review::class, 'idcurso', 'idcurso');
+        return $this->hasMany(Resena::class, 'idcurso', 'idcurso');
     }
 
     public function examenes()
@@ -67,24 +70,33 @@ class Curso extends Model
         return $this->hasMany(Examen::class, 'idcurso', 'idcurso');
     }
 
+    // 🎮 Nuevo: Juegos a través de las unidades
     public function juegos()
     {
-        return $this->hasMany(Juego::class, 'idcurso', 'idcurso');
+        return $this->hasManyThrough(
+            CursoJuego::class,
+            Unidad::class,
+            'idcurso',       // Foreign key en 'unidades'
+            'idunidad',      // Foreign key en 'curso_juego'
+            'idcurso',       // Local key en 'cursos'
+            'idunidad'       // Local key en 'unidades'
+        );
     }
 
-    // 📦 Oferta asociada
+    // 👇 Eliminadas las relaciones directas que usaban idcurso:
+    // public function cursoJuegos() {...}
+    // public function juegos() {...} ← reemplazada por la nueva versión
+
     public function oferta()
     {
         return $this->hasOne(Oferta::class, 'idcurso', 'idcurso');
     }
 
-    // 📜 Licencia (cuando se acepta la oferta)
     public function licencia()
     {
         return $this->hasOne(Licencia::class, 'idcurso', 'idcurso');
     }
 
-    // 🗒️ Observaciones
     public function observaciones()
     {
         return $this->hasMany(Observacion::class, 'idcurso', 'idcurso');
@@ -111,25 +123,20 @@ class Curso extends Model
     protected static function booted()
     {
         static::updated(function ($curso) {
-            // Solo si realmente cambió el estado
             if ($curso->wasChanged('estado')) {
                 $nuevoEstado = $curso->estado;
 
-                // 🔹 Obtener IDs de unidades
                 $idsUnidades = \App\Models\Unidad::where('idcurso', $curso->idcurso)
                     ->pluck('idunidad');
 
                 if ($idsUnidades->isNotEmpty()) {
-                    // 🔁 Actualizar unidades
                     \App\Models\Unidad::whereIn('idunidad', $idsUnidades)
                         ->update(['estado' => $nuevoEstado]);
 
-                    // 🔹 Obtener IDs de clases
                     $idsClases = \App\Models\Clase::whereIn('idunidad', $idsUnidades)
                         ->pluck('idclase');
 
                     if ($idsClases->isNotEmpty()) {
-                        // 🔁 Actualizar clases y contenidos
                         \App\Models\Clase::whereIn('idclase', $idsClases)
                             ->update(['estado' => $nuevoEstado]);
 

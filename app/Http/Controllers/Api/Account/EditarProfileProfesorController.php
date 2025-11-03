@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
-use App\Models\Usuario;
 use App\Models\PerfilUsuario;
 use App\Models\Profesor;
+use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -37,9 +37,9 @@ class EditarProfileProfesorController extends Controller
         $data = $request->validate([
             'nombres'       => ['sometimes','string','max:100'],
             'apellidos'     => ['sometimes','string','max:100'],
-            'correo'        => ['sometimes','email','max:191', Rule::unique('usuarios','correo')->ignore($user->idusuario,'idusuario')],
-            'nombreusuario' => ['sometimes','string','max:60', Rule::unique('usuarios','nombreusuario')->ignore($user->idusuario,'idusuario')],
-            'telefono'      => ['sometimes','nullable','string','max:30', Rule::unique('usuarios','telefono')->ignore($user->idusuario,'idusuario')],
+            'correo'        => ['sometimes','email','max:191', Rule::unique('usuarios', 'correo')->ignore($user->idusuario, 'idusuario')],
+            'nombreusuario' => ['sometimes','string','max:60', Rule::unique('usuarios', 'nombreusuario')->ignore($user->idusuario, 'idusuario')],
+            'telefono'      => ['sometimes','nullable','string','max:30', Rule::unique('usuarios', 'telefono')->ignore($user->idusuario, 'idusuario')],
             'linkedin_url'  => ['sometimes','nullable','url','max:255'],
             'github_url'    => ['sometimes','nullable','url','max:255'],
             'web_url'       => ['sometimes','nullable','url','max:255'],

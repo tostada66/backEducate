@@ -3,40 +3,69 @@
 namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
-use App\Models\Usuario;
 use App\Models\PerfilUsuario;
+use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
     /**
-     * Obtener el perfil completo del usuario autenticado (requiere login)
+     * 🔹 Obtener el perfil del usuario autenticado
      */
     public function show(Request $request)
     {
         $user = $request->user()
-            ->load(['estudiante.categorias','perfil','rolRel']);
+            ->load(['estudiante.categorias', 'perfil', 'rolRel']);
 
         return $this->formatUserResponse($user);
     }
 
     /**
-     * Obtener el perfil de un usuario por ID (modo público, durante registro)
+     * 🔹 Obtener el perfil de un usuario por ID (modo público, durante registro)
      */
     public function showRegistro($idusuario)
     {
-        $user = \App\Models\Usuario::with(['estudiante.categorias','perfil','rolRel'])
+        $user = Usuario::with(['estudiante.categorias', 'perfil', 'rolRel'])
             ->findOrFail($idusuario);
 
         return $this->formatUserResponse($user);
     }
 
     /**
-     * Formato de respuesta de perfil
+     * 🔹 Obtener el perfil de un usuario (modo admin)
+     */
+    public function showAdmin($idusuario)
+    {
+        $user = Usuario::with(['estudiante.categorias', 'perfil', 'rolRel'])
+            ->findOrFail($idusuario);
+
+        // ✅ Marcar categorías seleccionadas (para que se muestren en frontend)
+        if ($user->estudiante && $user->estudiante->categorias) {
+            $user->estudiante->categorias->transform(function ($cat) {
+                $cat->seleccionado = true;
+
+                return $cat;
+            });
+        }
+
+        return $this->formatUserResponse($user);
+    }
+
+    /**
+     * 🔹 Formato unificado de respuesta del perfil
      */
     private function formatUserResponse($user)
     {
+        // ⚙️ Aseguramos que las categorías estén marcadas como seleccionadas
+        if ($user->estudiante && $user->estudiante->categorias) {
+            $user->estudiante->categorias->transform(function ($cat) {
+                $cat->seleccionado = $cat->seleccionado ?? true;
+
+                return $cat;
+            });
+        }
+
         return response()->json([
             'ok'   => true,
             'user' => [
@@ -60,10 +89,11 @@ class ProfileController extends Controller
 
                 // intereses/categorías
                 'categorias'     => $user->estudiante
-                    ? $user->estudiante->categorias->map(fn($cat) => [
+                    ? $user->estudiante->categorias->map(fn ($cat) => [
                         'idcategoria' => $cat->idcategoria,
                         'nombre'      => $cat->nombre,
                         'descripcion' => $cat->descripcion,
+                        'seleccionado' => true, // 👈 clave para mostrar en frontend
                     ])
                     : [],
             ],
@@ -71,40 +101,39 @@ class ProfileController extends Controller
     }
 
     /**
-     * Guardar perfil extendido (público, durante registro)
-     * 👉 Aquí solo guardamos foto, linkedin, github, web y bio.
+     * 🔹 Guardar perfil extendido (modo registro)
      */
     public function guardarProfileRegistro(Request $request)
     {
         $data = $request->validate([
-            'idusuario'    => ['required','exists:usuarios,idusuario'],
-            'linkedin_url' => ['sometimes','nullable','url','max:255'],
-            'github_url'   => ['sometimes','nullable','url','max:255'],
-            'web_url'      => ['sometimes','nullable','url','max:255'],
-            'bio'          => ['sometimes','nullable','string'],
+            'idusuario'    => ['required', 'exists:usuarios,idusuario'],
+            'linkedin_url' => ['sometimes', 'nullable', 'url', 'max:255'],
+            'github_url'   => ['sometimes', 'nullable', 'url', 'max:255'],
+            'web_url'      => ['sometimes', 'nullable', 'url', 'max:255'],
+            'bio'          => ['sometimes', 'nullable', 'string'],
         ]);
 
-        $user = \App\Models\Usuario::findOrFail($data['idusuario']);
+        $user = Usuario::findOrFail($data['idusuario']);
 
-        // actualizar perfil extendido
+        // Actualizar perfil extendido
         $perfil = PerfilUsuario::firstOrCreate(['idusuario' => $user->idusuario]);
-        $perfil->fill(collect($data)->only(['linkedin_url','github_url','web_url','bio'])->toArray());
+        $perfil->fill(collect($data)->only(['linkedin_url', 'github_url', 'web_url', 'bio'])->toArray());
         $perfil->save();
 
-        return $this->formatUserResponse($user->fresh(['estudiante.categorias','perfil','rolRel']));
+        return $this->formatUserResponse($user->fresh(['estudiante.categorias', 'perfil', 'rolRel']));
     }
 
     /**
-     * Guardar foto de perfil (público, durante registro)
+     * 🔹 Guardar foto de perfil (modo registro)
      */
     public function guardarFotoRegistro(Request $request)
     {
         $request->validate([
-            'idusuario' => ['required','exists:usuarios,idusuario'],
-            'foto'      => ['nullable','image','max:2048'],
+            'idusuario' => ['required', 'exists:usuarios,idusuario'],
+            'foto'      => ['nullable', 'image', 'max:2048'],
         ]);
 
-        $user = \App\Models\Usuario::findOrFail($request->idusuario);
+        $user = Usuario::findOrFail($request->idusuario);
 
         if ($request->hasFile('foto')) {
             if ($user->foto && Storage::disk('public')->exists($user->foto)) {
@@ -115,6 +144,6 @@ class ProfileController extends Controller
             $user->save();
         }
 
-        return $this->formatUserResponse($user->fresh(['estudiante.categorias','perfil','rolRel']));
+        return $this->formatUserResponse($user->fresh(['estudiante.categorias', 'perfil', 'rolRel']));
     }
 }

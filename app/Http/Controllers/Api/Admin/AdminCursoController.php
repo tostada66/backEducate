@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Curso;
-use App\Models\Oferta;
 use App\Models\Observacion;
+use App\Models\Oferta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -52,7 +52,7 @@ class AdminCursoController extends Controller
         $curso = Curso::with(['unidades.clases', 'oferta'])->findOrFail($idcurso);
 
         // Contar clases totales
-        $numClases = $curso->unidades->sum(fn($unidad) => $unidad->clases->count());
+        $numClases = $curso->unidades->sum(fn ($unidad) => $unidad->clases->count());
 
         return response()->json([
             'ok' => true,
@@ -69,7 +69,7 @@ class AdminCursoController extends Controller
     {
         $curso = Curso::with(['unidades.clases'])->findOrFail($idcurso);
 
-        $totalClases = $curso->unidades->sum(fn($unidad) => $unidad->clases->count());
+        $totalClases = $curso->unidades->sum(fn ($unidad) => $unidad->clases->count());
 
         return response()->json([
             'ok' => true,
@@ -102,7 +102,7 @@ class AdminCursoController extends Controller
         ]);
 
         return DB::transaction(function () use ($curso, $request) {
-            $numClases = $curso->unidades->sum(fn($u) => $u->clases->count());
+            $numClases = $curso->unidades->sum(fn ($u) => $u->clases->count());
 
             if ($numClases === 0) {
                 return response()->json([
@@ -165,7 +165,7 @@ class AdminCursoController extends Controller
             'idcurso'   => $curso->idcurso,
             'idusuario' => $admin->idusuario,
             'tipo'      => 'rechazo',
-            'comentario'=> $data['comentario'],
+            'comentario' => $data['comentario'],
         ]);
 
         return response()->json([

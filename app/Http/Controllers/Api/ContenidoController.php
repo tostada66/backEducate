@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Curso;
 use App\Models\Clase;
 use App\Models\Contenido;
+use App\Models\Curso;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -22,7 +22,7 @@ class ContenidoController extends Controller
             ->orderBy('orden')
             ->get();
 
-        $contenidos->transform(fn($c) => $this->mapUrls($c));
+        $contenidos->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json($contenidos);
     }
@@ -159,10 +159,18 @@ class ContenidoController extends Controller
             'estado'      => 'in:borrador,publicado'
         ]);
 
-        if (isset($data['titulo'])) $contenido->titulo = $data['titulo'];
-        if (isset($data['descripcion'])) $contenido->descripcion = $data['descripcion'];
-        if (isset($data['duracion'])) $contenido->duracion = $data['duracion'];
-        if (isset($data['estado'])) $contenido->estado = $data['estado'];
+        if (isset($data['titulo'])) {
+            $contenido->titulo = $data['titulo'];
+        }
+        if (isset($data['descripcion'])) {
+            $contenido->descripcion = $data['descripcion'];
+        }
+        if (isset($data['duracion'])) {
+            $contenido->duracion = $data['duracion'];
+        }
+        if (isset($data['estado'])) {
+            $contenido->estado = $data['estado'];
+        }
 
         if ($request->hasFile('archivo')) {
             if ($contenido->url && Storage::disk('public')->exists($contenido->url)) {
@@ -248,18 +256,24 @@ class ContenidoController extends Controller
                 ->where('orden', $contenido->orden - 1)
                 ->first();
             if ($anterior) {
-                $contenido->orden = -1; $contenido->save();
-                $anterior->orden++; $anterior->save();
-                $contenido->orden = $anterior->orden - 1; $contenido->save();
+                $contenido->orden = -1;
+                $contenido->save();
+                $anterior->orden++;
+                $anterior->save();
+                $contenido->orden = $anterior->orden - 1;
+                $contenido->save();
             }
         } elseif ($direccion === 'down') {
             $siguiente = Contenido::where('idclase', $idclase)
                 ->where('orden', $contenido->orden + 1)
                 ->first();
             if ($siguiente) {
-                $contenido->orden = -1; $contenido->save();
-                $siguiente->orden--; $siguiente->save();
-                $contenido->orden = $siguiente->orden + 1; $contenido->save();
+                $contenido->orden = -1;
+                $contenido->save();
+                $siguiente->orden--;
+                $siguiente->save();
+                $contenido->orden = $siguiente->orden + 1;
+                $contenido->save();
             }
         }
 
@@ -267,7 +281,7 @@ class ContenidoController extends Controller
             ->orderBy('orden')
             ->get();
 
-        $contenidos->transform(fn($c) => $this->mapUrls($c));
+        $contenidos->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json([
             'ok' => true,
@@ -325,7 +339,7 @@ class ContenidoController extends Controller
             ->orderBy('orden')
             ->get();
 
-        $contenidos->transform(fn($c) => $this->mapUrls($c));
+        $contenidos->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json($contenidos);
     }
@@ -378,6 +392,6 @@ class ContenidoController extends Controller
 
     private function cleanPath($path)
     {
-        return str_replace([url('storage').'/', config('app.url').'/storage/'], '', $path);
+        return str_replace([url('storage') . '/', config('app.url') . '/storage/'], '', $path);
     }
 }

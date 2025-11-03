@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,      // 👑 usuario administrador
             ProfesorSeeder::class,   // 👨‍🏫 profesor de prueba
             EstudianteSeeder::class, // 🎓 estudiante de prueba
+            JuegosSeeder::class,
         ]);
     }
 }

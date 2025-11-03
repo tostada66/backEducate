@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
-use App\Models\Usuario;
-use App\Models\Profesor;
+use App\Models\Curso;
 use App\Models\PerfilUsuario;
+use App\Models\Profesor;
+use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -145,6 +146,29 @@ class ProfesorController extends Controller
             'ok'   => true,
             'user' => $this->formatUserResponse($user)
         ]);
+    }
+
+    /**
+     * 👑 ADMIN: listar todos los profesores registrados
+     */
+    public function listarProfesores()
+    {
+        $profesores = Profesor::with('usuario')
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'idprofesor'   => $p->idprofesor,
+                    'idusuario'    => $p->usuario->idusuario ?? null,
+                    'nombres'      => $p->usuario->nombres ?? '—',
+                    'apellidos'    => $p->usuario->apellidos ?? '',
+                    'correo'       => $p->usuario->correo ?? '',
+                    'estado'       => $p->usuario->estado ?? 0,
+                    'total_cursos' => Curso::where('idprofesor', $p->idprofesor)->count(),
+                    'created_at'   => $p->usuario->created_at ?? null,
+                ];
+            });
+
+        return response()->json($profesores);
     }
 
     /**

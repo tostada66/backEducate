@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Oferta;
 use App\Http\Requests\StoreOfertaRequest;
 use App\Http\Requests\UpdateOfertaRequest;
+use App\Models\Oferta;
 
 class OfertaController extends Controller
 {

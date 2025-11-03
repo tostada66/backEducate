@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 class Usuario extends Authenticatable implements CanResetPasswordContract
 {
-    use HasApiTokens, Notifiable, CanResetPassword;
+    use HasApiTokens;
+    use Notifiable;
+    use CanResetPassword;
 
     protected $table = 'usuarios';
     protected $primaryKey = 'idusuario';
@@ -83,9 +85,15 @@ class Usuario extends Authenticatable implements CanResetPasswordContract
         return $this->hasMany(Factura::class, 'idusuario', 'idusuario');
     }
 
-    // 🗒️ Nueva relación: observaciones (comentarios, rechazos, etc.)
+    // 🗒️ Nueva relación: observaciones (comentarios de revisión, rechazos, etc.)
     public function observaciones()
     {
         return $this->hasMany(Observacion::class, 'idusuario', 'idusuario');
+    }
+
+    // 💬 Nueva relación: comentarios en clases (tipo YouTube)
+    public function comentarios()
+    {
+        return $this->hasMany(Comentario::class, 'idusuario', 'idusuario');
     }
 }

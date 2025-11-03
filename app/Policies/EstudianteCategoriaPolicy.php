@@ -2,9 +2,8 @@
 
 namespace App\Policies;
 
-use App\Models\Usuario;
 use App\Models\estudiante_categoria;
-use Illuminate\Auth\Access\Response;
+use App\Models\Usuario;
 
 class EstudianteCategoriaPolicy
 {

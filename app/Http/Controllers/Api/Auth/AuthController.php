@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Suscripcion;
+use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use App\Models\Usuario;
-use App\Models\Suscripcion;
 
 class AuthController extends Controller
 {
@@ -23,14 +23,11 @@ class AuthController extends Controller
 
         $identifier = trim($data['login'] ?? $data['email'] ?? '');
         $identifierLower = strtolower($identifier);
-
         $isEmail = filter_var($identifier, FILTER_VALIDATE_EMAIL);
 
-        if ($isEmail || isset($data['email'])) {
-            $user = Usuario::whereRaw('LOWER(correo) = ?', [$identifierLower])->first();
-        } else {
-            $user = Usuario::where('nombreusuario', $identifier)->first();
-        }
+        $user = $isEmail || isset($data['email'])
+            ? Usuario::whereRaw('LOWER(correo) = ?', [$identifierLower])->first()
+            : Usuario::where('nombreusuario', $identifier)->first();
 
         // ❌ Usuario no encontrado o contraseña incorrecta
         if (!$user || !Hash::check($data['password'], $user->password)) {
@@ -44,19 +41,17 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // ✅ Validar profesor aprobado
-        if ($user->idrol === 2 && $user->profesor) {
-            if ($user->profesor->estado_aprobacion !== 'aprobado') {
-                return response()->json([
-                    'message' => 'Su cuenta de profesor aún no fue aprobada.',
-                ], 403);
-            }
+        // ❌ Profesor no aprobado
+        if ($user->idrol === 2 && $user->profesor && $user->profesor->estado_aprobacion !== 'aprobado') {
+            return response()->json([
+                'message' => 'Su cuenta de profesor aún no fue aprobada.',
+            ], 403);
         }
 
         // 🔑 Generar token
         $token = $user->createToken('api')->plainTextToken;
 
-        // 🔍 Buscar suscripción activa (solo si es estudiante)
+        // 🔍 Suscripción activa (solo estudiantes)
         $suscripcionActiva = null;
         if ($user->idrol === 1 && $user->estudiante) {
             $suscripcionActiva = Suscripcion::where('idestudiante', $user->estudiante->idestudiante)
@@ -75,18 +70,14 @@ class AuthController extends Controller
                 'nombres'            => $user->nombres,
                 'correo'             => $user->correo,
                 'nombreusuario'      => $user->nombreusuario,
-
-                // Estado de aprobación profesor (si aplica)
                 'estado_aprobacion'  => $user->profesor->estado_aprobacion ?? null,
-
-                // 👉 Info de suscripción (solo estudiantes)
-                'suscripcion_activa' => $suscripcionActiva ? true : false,
+                'suscripcion_activa' => (bool) $suscripcionActiva,
                 'plan_id'            => $suscripcionActiva?->idplan,
                 'fecha_fin'          => $suscripcionActiva?->fecha_fin,
             ],
             'token'      => $token,
             'needs_role' => is_null($user->idrol),
-        ], 200);
+        ]);
     }
 
     /**
@@ -95,10 +86,8 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-
         $suscripcionActiva = null;
 
-        // Solo aplica para estudiantes
         if ($user->idrol === 1 && $user->estudiante) {
             $suscripcionActiva = Suscripcion::where('idestudiante', $user->estudiante->idestudiante)
                 ->where('estado', true)
@@ -115,10 +104,8 @@ class AuthController extends Controller
             'nombres'            => $user->nombres,
             'correo'             => $user->correo,
             'nombreusuario'      => $user->nombreusuario,
-
-            // Extra para el frontend
             'estado_aprobacion'  => $user->profesor->estado_aprobacion ?? null,
-            'suscripcion_activa' => $suscripcionActiva ? true : false,
+            'suscripcion_activa' => (bool) $suscripcionActiva,
             'plan_id'            => $suscripcionActiva?->idplan,
             'fecha_fin'          => $suscripcionActiva?->fecha_fin,
         ]);
@@ -129,10 +116,18 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()?->delete();
+        try {
+            // ✅ Eliminar token si existe
+            if ($request->user()) {
+                $request->user()->currentAccessToken()?->delete();
+            }
+        } catch (\Throwable $e) {
+            // ⚠️ No pasa nada si ya no hay token o usuario
+        }
 
+        // 💡 Siempre devolver 200 OK (incluso si no hay usuario autenticado)
         return response()->json([
-            'message' => 'Sesión cerrada',
+            'message' => 'Sesión cerrada correctamente.',
         ], 200);
     }
 }

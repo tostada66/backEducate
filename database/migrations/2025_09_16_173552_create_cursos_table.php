@@ -4,8 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class () extends Migration {
     public function up(): void
     {
         Schema::create('cursos', function (Blueprint $table) {
@@ -21,6 +20,10 @@ return new class extends Migration
             $table->enum('nivel', ['Básico', 'Intermedio', 'Avanzado'])->nullable();
             $table->text('descripcion')->nullable();
             $table->string('imagen', 255)->nullable();
+
+            // ⭐ Estadísticas de reseñas
+            $table->float('promedio_resenas', 3, 2)->default(0)->comment('Promedio de puntuación de reseñas');
+            $table->unsignedInteger('total_resenas')->default(0)->comment('Número total de reseñas del curso');
 
             // ⚙️ Estado del curso y timestamps
             $table->enum('estado', [

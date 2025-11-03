@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Oferta;
 use App\Models\Usuario;
-use Illuminate\Auth\Access\Response;
 
 class OfertaPolicy
 {

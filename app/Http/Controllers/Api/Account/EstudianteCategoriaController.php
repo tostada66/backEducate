@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Estudiante;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -43,7 +43,7 @@ class EstudianteCategoriaController extends Controller
                 'categorias' => $categorias,
             ], 201);
         } catch (\Throwable $e) {
-            Log::error("❌ Error guardarInteresesRegistro", [
+            Log::error('❌ Error guardarInteresesRegistro', [
                 'exception' => $e,
                 'payload'   => $request->all()
             ]);
@@ -95,7 +95,7 @@ class EstudianteCategoriaController extends Controller
                 'categorias' => $categorias,
             ]);
         } catch (\Throwable $e) {
-            Log::error("❌ Error updateIntereses", [
+            Log::error('❌ Error updateIntereses', [
                 'exception' => $e,
                 'payload'   => $request->all()
             ]);
@@ -127,7 +127,7 @@ class EstudianteCategoriaController extends Controller
                 'categorias' => $categorias,
             ]);
         } catch (\Throwable $e) {
-            Log::error("❌ Error getIntereses", [
+            Log::error('❌ Error getIntereses', [
                 'exception' => $e,
                 'idusuario' => $idusuario,
             ]);
@@ -171,7 +171,7 @@ class EstudianteCategoriaController extends Controller
                 'categorias' => $categorias,
             ]);
         } catch (\Throwable $e) {
-            Log::error("❌ Error getTodasConEstado", [
+            Log::error('❌ Error getTodasConEstado', [
                 'exception' => $e,
                 'idusuario' => $idusuario,
             ]);

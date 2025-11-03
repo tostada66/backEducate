@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use App\Models\Usuario;
 use App\Models\Estudiante;
 use App\Models\Rol;
+use App\Models\Usuario;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class EstudianteSeeder extends Seeder
 {

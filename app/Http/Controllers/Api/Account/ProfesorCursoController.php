@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api\Account;
 
 use App\Http\Controllers\Controller;
 use App\Models\Curso;
-use App\Models\Oferta;
 use App\Models\Licencia;
 use App\Models\Observacion;
+use App\Models\Oferta;
+use App\Models\PagoProfesor;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class ProfesorCursoController extends Controller
 {
@@ -84,7 +85,7 @@ class ProfesorCursoController extends Controller
     }
 
     /**
-     * ✅ Aceptar oferta → crea licencia y publica curso
+     * ✅ Aceptar oferta → crea licencia, publica curso y genera pago pendiente
      */
     public function aceptarOferta($idcurso)
     {
@@ -92,11 +93,12 @@ class ProfesorCursoController extends Controller
         $oferta = $curso->oferta;
 
         if (!$oferta) {
-            return response()->json(['message' => 'No hay oferta para aceptar'], 404);
+            return response()->json(['ok' => false, 'message' => 'No hay oferta para aceptar'], 404);
         }
 
         DB::transaction(function () use ($curso, $oferta) {
-            Licencia::create([
+            // 1️⃣ Crear licencia
+            $licencia = Licencia::create([
                 'idcurso'          => $curso->idcurso,
                 'idprofesor'       => $curso->idprofesor,
                 'num_clases'       => $oferta->num_clases,
@@ -108,12 +110,23 @@ class ProfesorCursoController extends Controller
                 'estado'           => 'activa',
             ]);
 
+            // 2️⃣ Generar pago pendiente automáticamente
+            PagoProfesor::create([
+                'idprofesor'       => $curso->idprofesor,
+                'idlicencia'       => $licencia->idlicencia,
+                'monto'            => $oferta->costo_total,
+                'estado'           => 'pendiente',
+                'fecha_generacion' => now(),
+            ]);
+
+            // 3️⃣ Actualizar estados
             $curso->update(['estado' => 'publicado']);
+            $oferta->update(['estado' => 'aceptada']);
         });
 
         return response()->json([
             'ok' => true,
-            'message' => 'Oferta aceptada, curso publicado y licencia creada correctamente'
+            'message' => 'Oferta aceptada, curso publicado y pago pendiente generado correctamente.'
         ]);
     }
 
@@ -148,7 +161,7 @@ class ProfesorCursoController extends Controller
             'idoferta'  => $curso->oferta->idoferta,
             'idusuario' => $profesor->idusuario,
             'tipo'      => $tipo,
-            'comentario'=> $data['comentario'],
+            'comentario' => $data['comentario'],
         ]);
 
         return response()->json([
@@ -180,6 +193,23 @@ class ProfesorCursoController extends Controller
             'ok' => true,
             'message' => 'Curso reenviado a revisión correctamente.',
             'curso' => $curso
+        ]);
+    }
+    /**
+     * 👑 ADMIN: Listar cursos de un profesor específico
+    */
+    public function cursosPorProfesor($idprofesor)
+    {
+        $cursos = Curso::where('idprofesor', $idprofesor)
+            ->with(['categoria'])
+            ->withCount(['observaciones as num_observaciones'])
+            ->withExists(['oferta as tiene_oferta'])
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'ok' => true,
+            'data' => $cursos
         ]);
     }
 }

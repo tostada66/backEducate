@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Rol;
+use App\Models\Usuario;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use App\Models\Usuario;
-use App\Models\Rol;
 
 class AdminSeeder extends Seeder
 {

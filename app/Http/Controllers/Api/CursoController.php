@@ -14,25 +14,25 @@ class CursoController extends Controller
      */
     public function index(Request $request)
     {
-        $user = $request->user();
-        $rol  = strtolower($user->rolRel?->nombre);
+    $user = $request->user();
+    $idrol = $user->idrol; // Usamos el ID numérico
 
-        if ($rol === 'profesor') {
-            $cursos = Curso::where('idprofesor', $user->profesor->idprofesor)
-                ->with(['profesor', 'unidades.clases.contenidos', 'categoria'])
-                ->latest()
-                ->paginate(10);
-        } elseif ($rol === 'administrador') {
-            $cursos = Curso::with(['profesor', 'unidades.clases.contenidos', 'categoria'])
-                ->latest()
-                ->paginate(10);
-        } else {
-            return response()->json(['message' => 'No autorizado'], 403);
-        }
+    if ($idrol === 2) { // 👨‍🏫 Profesor
+        $cursos = Curso::where('idprofesor', $user->profesor->idprofesor)
+            ->with(['profesor.usuario', 'categoria'])
+            ->latest()
+            ->paginate(10);
+    } elseif ($idrol === 3) { // 🛠️ Administrador
+        $cursos = Curso::with(['profesor.usuario', 'categoria'])
+            ->latest()
+            ->paginate(10);
+    } else { // 🎓 Estudiante u otro rol
+        return response()->json(['message' => 'No autorizado'], 403);
+    }
 
-        $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
+    $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
 
-        return response()->json($cursos);
+    return response()->json($cursos);
     }
 
     /**
@@ -42,7 +42,6 @@ class CursoController extends Controller
     {
         $user = $request->user();
         $rol  = strtolower($user->rolRel?->nombre);
-
         if ($rol !== 'profesor') {
             return response()->json(['message' => 'Solo los profesores pueden crear cursos'], 403);
         }
@@ -130,9 +129,15 @@ class CursoController extends Controller
             $curso->nombre = $data['nombre'];
             $curso->slug   = Str::slug($data['nombre']) . '-' . uniqid();
         }
-        if (isset($data['descripcion'])) $curso->descripcion = $data['descripcion'];
-        if (isset($data['nivel']))       $curso->nivel       = $data['nivel'];
-        if (isset($data['idcategoria'])) $curso->idcategoria = $data['idcategoria'];
+        if (isset($data['descripcion'])) {
+            $curso->descripcion = $data['descripcion'];
+        }
+        if (isset($data['nivel'])) {
+            $curso->nivel       = $data['nivel'];
+        }
+        if (isset($data['idcategoria'])) {
+            $curso->idcategoria = $data['idcategoria'];
+        }
 
         if ($request->hasFile('imagen')) {
             $curso->imagen = $request->file('imagen')->store('cursos', 'public');
@@ -256,17 +261,36 @@ class CursoController extends Controller
     /**
      * 📖 Catálogo público (solo info básica)
      */
+    /**
+ * 📖 Catálogo público (solo info básica)
+ */
     public function catalogo()
     {
         $cursos = Curso::where('estado', 'publicado')
-            ->with(['profesor','categoria'])
+            ->with([
+                'profesor.usuario', // 👈 también cargamos el usuario del profesor
+                'categoria'
+            ])
             ->latest()
             ->paginate(10);
 
-        $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
+        // Añadimos URLs y nombre completo del profesor
+        $cursos->getCollection()->transform(function ($curso) {
+            $this->mapUrls($curso);
+
+            if ($curso->profesor && $curso->profesor->usuario) {
+                $usuario = $curso->profesor->usuario;
+                $curso->profesor->nombre_completo = trim("{$usuario->nombres} {$usuario->apellidos}");
+            } else {
+                $curso->profesor->nombre_completo = "Profesor #{$curso->profesor->idprofesor}";
+            }
+
+            return $curso;
+        });
 
         return response()->json($cursos);
     }
+
 
     /**
      * 👁 Mostrar curso público (con unidades)
@@ -278,6 +302,7 @@ class CursoController extends Controller
             ->findOrFail($idcurso);
 
         $this->mapUrls($curso);
+
         return response()->json($curso);
     }
 
@@ -301,6 +326,6 @@ class CursoController extends Controller
 
     private function cleanPath($path)
     {
-        return str_replace([url('storage').'/', config('app.url').'/storage/'], '', $path);
+        return str_replace([url('storage') . '/', config('app.url') . '/storage/'], '', $path);
     }
 }
