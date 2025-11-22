@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Account;
 use App\Http\Controllers\Controller;
 use App\Models\Usuario;
 use App\Models\Profesor;
+use App\Models\PerfilUsuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -16,14 +17,36 @@ class ProfesorController extends Controller
     public function guardarRegistro(Request $request)
     {
         $data = $request->validate([
-            'idusuario'    => ['required','exists:usuarios,idusuario'],
-            'especialidad' => ['sometimes','nullable','string','max:120'],
-            'bio'          => ['sometimes','nullable','string'],
+            'idusuario'     => ['required','exists:usuarios,idusuario'],
+            'especialidad'  => ['sometimes','nullable','string','max:120'],
+            'bio'           => ['sometimes','nullable','string'],
+            'direccion'     => ['sometimes','nullable','string','max:150'],
+            'pais'          => ['sometimes','nullable','string','max:100'],
+            'empresa'       => ['sometimes','nullable','string','max:150'],
+            'cargo'         => ['sometimes','nullable','string','max:120'],
+            'fecha_inicio'  => ['sometimes','nullable','date'],
+            'fecha_fin'     => ['sometimes','nullable','date'],
+            'detalles'      => ['sometimes','nullable','string'],
+
+            // ✅ Campos perfil_usuarios
+            'linkedin_url'  => ['sometimes','nullable','url','max:255'],
+            'github_url'    => ['sometimes','nullable','url','max:255'],
+            'web_url'       => ['sometimes','nullable','url','max:255'],
         ]);
 
+        // 🔹 Guardar datos en tabla profesores
         $profesor = Profesor::firstOrCreate(['idusuario' => $data['idusuario']]);
-        $profesor->fill(collect($data)->only(['especialidad','bio'])->toArray());
+        $profesor->fill(collect($data)->only([
+            'especialidad','bio','direccion','pais','empresa','cargo','fecha_inicio','fecha_fin','detalles'
+        ])->toArray());
         $profesor->save();
+
+        // 🔹 Guardar datos en perfil_usuarios
+        $perfil = PerfilUsuario::firstOrCreate(['idusuario' => $data['idusuario']]);
+        $perfil->fill(collect($data)->only([
+            'linkedin_url','github_url','web_url','bio'
+        ])->toArray());
+        $perfil->save();
 
         return response()->json([
             'ok'   => true,
@@ -102,8 +125,15 @@ class ProfesorController extends Controller
             // Profesor
             'especialidad'  => $user->profesor->especialidad ?? null,
             'bio'           => $user->profesor->bio
-                ?? $user->perfil->bio
-                ?? null,
+                                ?? $user->perfil->bio
+                                ?? null,
+            'direccion'     => $user->profesor->direccion ?? null,
+            'pais'          => $user->profesor->pais ?? null,
+            'empresa'       => $user->profesor->empresa ?? null,
+            'cargo'         => $user->profesor->cargo ?? null,
+            'fecha_inicio'  => $user->profesor->fecha_inicio ?? null,
+            'fecha_fin'     => $user->profesor->fecha_fin ?? null,
+            'detalles'      => $user->profesor->detalles ?? null,
         ];
     }
 }

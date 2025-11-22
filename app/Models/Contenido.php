@@ -19,9 +19,12 @@ class Contenido extends Model
         'descripcion',
         'tipo',
         'url',
+        'duracion',   // 👈 lo agregamos
         'orden',
         'estado'
     ];
+
+    protected $dates = ['deleted_at'];
 
     // 👉 Accessor para incluir URL pública automáticamente
     protected $appends = ['url_publica'];
@@ -34,6 +37,7 @@ class Contenido extends Model
         return $this->url;
     }
 
+    // 🔹 Relación: un contenido pertenece a una clase
     public function clase()
     {
         return $this->belongsTo(Clase::class, 'idclase', 'idclase');

@@ -30,7 +30,7 @@ class EstudianteCategoriaController extends Controller
             // 🔹 Sobrescribe lo que seleccione
             $estudiante->categorias()->sync($request->categorias);
 
-            // 🔹 Traer categorías sin ambigüedad
+            // 🔹 Solo las seleccionadas del estudiante
             $categorias = DB::table('categorias')
                 ->join('estudiante_categoria', 'categorias.idcategoria', '=', 'estudiante_categoria.idcategoria')
                 ->where('estudiante_categoria.idestudiante', $estudiante->idestudiante)
@@ -52,8 +52,6 @@ class EstudianteCategoriaController extends Controller
                 'ok'      => false,
                 'message' => 'Error al guardar intereses',
                 'error'   => $e->getMessage(),
-                'line'    => $e->getLine(),
-                'file'    => $e->getFile(),
             ], 500);
         }
     }
@@ -106,14 +104,12 @@ class EstudianteCategoriaController extends Controller
                 'ok'      => false,
                 'message' => 'Error al actualizar intereses',
                 'error'   => $e->getMessage(),
-                'line'    => $e->getLine(),
-                'file'    => $e->getFile(),
             ], 500);
         }
     }
 
     /**
-     * Obtener intereses del estudiante (requiere login o idusuario explícito).
+     * Obtener SOLO los intereses del estudiante (vista normal).
      */
     public function getIntereses($idusuario)
     {
@@ -126,7 +122,10 @@ class EstudianteCategoriaController extends Controller
                 ->select('categorias.idcategoria', 'categorias.nombre')
                 ->get();
 
-            return response()->json($categorias);
+            return response()->json([
+                'ok'         => true,
+                'categorias' => $categorias,
+            ]);
         } catch (\Throwable $e) {
             Log::error("❌ Error getIntereses", [
                 'exception' => $e,
@@ -137,8 +136,50 @@ class EstudianteCategoriaController extends Controller
                 'ok'      => false,
                 'message' => 'Error al obtener intereses',
                 'error'   => $e->getMessage(),
-                'line'    => $e->getLine(),
-                'file'    => $e->getFile(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener TODAS las categorías y marcar cuáles tiene el estudiante (modo edición).
+     */
+    public function getTodasConEstado($idusuario)
+    {
+        try {
+            $estudiante = Estudiante::where('idusuario', $idusuario)->firstOrFail();
+
+            // todas las categorías
+            $todas = DB::table('categorias')->select('idcategoria', 'nombre')->get();
+
+            // categorías seleccionadas por el estudiante
+            $seleccionadas = DB::table('estudiante_categoria')
+                ->where('idestudiante', $estudiante->idestudiante)
+                ->pluck('idcategoria')
+                ->toArray();
+
+            // respuesta con flag seleccionado
+            $categorias = $todas->map(function ($cat) use ($seleccionadas) {
+                return [
+                    'idcategoria'  => $cat->idcategoria,
+                    'nombre'       => $cat->nombre,
+                    'seleccionado' => in_array($cat->idcategoria, $seleccionadas),
+                ];
+            });
+
+            return response()->json([
+                'ok'         => true,
+                'categorias' => $categorias,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("❌ Error getTodasConEstado", [
+                'exception' => $e,
+                'idusuario' => $idusuario,
+            ]);
+
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Error al obtener todas las categorías',
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }

@@ -8,6 +8,7 @@ class Categoria extends Model
 {
     protected $table = 'categorias';
     protected $primaryKey = 'idcategoria';
+
     protected $fillable = ['nombre', 'descripcion'];
 
     // 🔹 Relación muchos a muchos con estudiantes
@@ -16,11 +17,16 @@ class Categoria extends Model
         return $this->belongsToMany(
             Estudiante::class,
             'estudiante_categoria',
-            'idcategoria',   // FK local en pivot
-            'idestudiante'   // FK relacionada
+            'idcategoria',   // FK de Categoria en pivot
+            'idestudiante'   // FK de Estudiante en pivot
         )
         ->withTimestamps()
         ->select('estudiantes.idestudiante', 'estudiantes.idusuario', 'estudiantes.nivelacademico');
-        // 👆 Así evitas ambigüedad
+    }
+
+    // 🔹 Relación uno a muchos con cursos
+    public function cursos()
+    {
+        return $this->hasMany(Curso::class, 'idcategoria', 'idcategoria');
     }
 }

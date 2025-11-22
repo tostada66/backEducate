@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Account\EstudianteController;
 use App\Http\Controllers\Api\Account\EstudianteCategoriaController;
 use App\Http\Controllers\Api\Account\ProfesorController;
 use App\Http\Controllers\Api\CursoController;
+use App\Http\Controllers\Api\UnidadController;
 use App\Http\Controllers\Api\ClaseController;
 use App\Http\Controllers\Api\ContenidoController;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
@@ -22,7 +23,6 @@ Route::get('/ping', fn () => response()->json(['pong' => true]));
 
 // ---------- Públicas (sin login) ----------
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
-    // Registro paso 1: usuario base
     Route::post('/register', [RegisteredUserController::class, 'store'])
         ->middleware('throttle:12,1')
         ->name('api.register');
@@ -76,8 +76,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Estudiantes
     Route::post('/estudiantes/nivel', [EstudianteController::class, 'guardarNivel'])->name('api.estudiantes.nivel');
     Route::get('/estudiantes/me', [EstudianteController::class, 'show'])->name('api.estudiantes.me');
+    Route::patch('/estudiantes/me', [EstudianteController::class, 'update'])->name('api.estudiantes.update');
     Route::post('/estudiantes/intereses', [EstudianteCategoriaController::class, 'updateIntereses'])->name('api.estudiantes.intereses');
     Route::get('/estudiantes/{idusuario}/intereses', [EstudianteCategoriaController::class, 'getIntereses'])->name('api.estudiantes.getIntereses');
+    Route::get('/estudiantes/{idusuario}/categorias', [EstudianteCategoriaController::class, 'getTodasConEstado'])->name('api.estudiantes.getTodasCategorias');
 
     // Profesores
     Route::get('/me/profile/profesor', [EditarProfileProfesorController::class, 'show'])->name('api.me.profesor.show');
@@ -92,25 +94,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/cursos/{idcurso}', [CursoController::class, 'update'])->name('api.cursos.update');
     Route::delete('/cursos/{idcurso}', [CursoController::class, 'destroy'])->name('api.cursos.destroy');
 
-    // ---------- Clases (dependen de curso) ----------
-    Route::get('/cursos/{idcurso}/clases', [ClaseController::class, 'index'])->name('api.clases.index');
-    Route::post('/cursos/{idcurso}/clases', [ClaseController::class, 'store'])->name('api.clases.store');
-    Route::get('/cursos/{idcurso}/clases/{idclase}', [ClaseController::class, 'show'])->name('api.clases.show');
-    Route::patch('/cursos/{idcurso}/clases/{idclase}', [ClaseController::class, 'update'])->name('api.clases.update');
-    Route::delete('/cursos/{idcurso}/clases/{idclase}', [ClaseController::class, 'destroy'])->name('api.clases.destroy');
-    Route::post('/cursos/{idcurso}/clases/{idclase}/restore', [ClaseController::class, 'restore'])->name('api.clases.restore');
+    // ---------- Unidades ----------
+    Route::get('/cursos/{idcurso}/unidades', [UnidadController::class, 'index'])->name('api.unidades.index');
+    Route::post('/cursos/{idcurso}/unidades', [UnidadController::class, 'store'])->name('api.unidades.store');
+    Route::get('/cursos/{idcurso}/unidades/{idunidad}', [UnidadController::class, 'show'])->name('api.unidades.show');
+    Route::patch('/cursos/{idcurso}/unidades/{idunidad}', [UnidadController::class, 'update'])->name('api.unidades.update');
+    Route::delete('/cursos/{idcurso}/unidades/{idunidad}', [UnidadController::class, 'destroy'])->name('api.unidades.destroy');
 
-    // ---------- Contenidos (dependen de clase) ----------
-    Route::get('/clases/{idclase}/contenidos', [ContenidoController::class, 'index'])->name('api.contenidos.index');
-    Route::post('/clases/{idclase}/contenidos', [ContenidoController::class, 'store'])->name('api.contenidos.store');
-    Route::get('/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'show'])->name('api.contenidos.show');
-    Route::patch('/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'update'])->name('api.contenidos.update');
-    Route::delete('/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'destroy'])->name('api.contenidos.destroy');
+    // ---------- Clases ----------
+    Route::get('/cursos/{idcurso}/unidades/{idunidad}/clases', [ClaseController::class, 'index'])->name('api.clases.index');
+    Route::post('/cursos/{idcurso}/unidades/{idunidad}/clases', [ClaseController::class, 'store'])->name('api.clases.store');
+    Route::get('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}', [ClaseController::class, 'show'])->name('api.clases.show');
+    Route::patch('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}', [ClaseController::class, 'update'])->name('api.clases.update');
+    Route::delete('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}', [ClaseController::class, 'destroy'])->name('api.clases.destroy');
+
+    // 🔄 Cambiar orden de clases
+    Route::patch('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/orden', [ClaseController::class, 'cambiarOrden'])->name('api.clases.cambiarOrden');
+
+    // ---------- Contenidos ----------
+    Route::get('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos', [ContenidoController::class, 'index'])->name('api.contenidos.index');
+    Route::post('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos', [ContenidoController::class, 'store'])->name('api.contenidos.store');
+    Route::get('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'show'])->name('api.contenidos.show');
+    Route::patch('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'update'])->name('api.contenidos.update');
+    Route::delete('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos/{idcontenido}', [ContenidoController::class, 'destroy'])->name('api.contenidos.destroy');
+
+    // 🔄 Cambiar orden de contenidos
+    Route::patch('/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos/{idcontenido}/orden', [ContenidoController::class, 'cambiarOrden'])->name('api.contenidos.cambiarOrden');
 });
 
 // ---------- Categorías públicas ----------
 Route::get('/categorias', fn () => \App\Models\Categoria::all(['idcategoria','nombre','descripcion']))
     ->name('api.categorias.list');
 
-// ---------- Cursos públicos (catálogo) ----------
+// ---------- Catálogo público (para estudiantes) ----------
 Route::get('/catalogo/cursos', [CursoController::class, 'catalogo'])->name('api.catalogo.cursos');
+Route::get('/catalogo/cursos/{idcurso}/unidades', [UnidadController::class, 'catalogo'])->name('api.catalogo.unidades');
+Route::get('/catalogo/cursos/{idcurso}/unidades/{idunidad}/clases', [ClaseController::class, 'catalogo'])->name('api.catalogo.clases');
+Route::get('/catalogo/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos', [ContenidoController::class, 'catalogo'])->name('api.catalogo.contenidos');
