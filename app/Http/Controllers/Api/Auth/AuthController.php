@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Suscripcion;
 use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -11,79 +12,122 @@ class AuthController extends Controller
 {
     /**
      * POST /api/login
-     * Body (flexible):
-     *  - { "login": "correo o nombreusuario", "password": "..." }
-     *  - { "email": "correo@dominio.com", "password": "..." }
-     * Responde: { user, token, needs_role }
      */
     public function login(Request $request)
     {
-        // Al menos una de las dos llaves: login o email
         $data = $request->validate([
             'login'    => 'nullable|string|required_without:email',
             'email'    => 'nullable|email|required_without:login',
             'password' => 'required|string|min:4',
         ]);
 
-        // Normaliza el identificador
         $identifier = trim($data['login'] ?? $data['email'] ?? '');
         $identifierLower = strtolower($identifier);
-
-        // Detecta si el identificador tiene forma de email
         $isEmail = filter_var($identifier, FILTER_VALIDATE_EMAIL);
 
-        // Búsqueda flexible:
-        // - Si viene "email" o el "login" tiene forma de email → busca por "correo" (case-insensitive)
-        // - Si viene "login" (no email) → busca por "nombreusuario"
-        if ($isEmail || isset($data['email'])) {
-            $user = Usuario::whereRaw('LOWER(correo) = ?', [$identifierLower])->first();
-        } else {
-            $user = Usuario::where('nombreusuario', $identifier)->first();
-        }
+        $user = $isEmail || isset($data['email'])
+            ? Usuario::whereRaw('LOWER(correo) = ?', [$identifierLower])->first()
+            : Usuario::where('nombreusuario', $identifier)->first();
 
-        // Credenciales inválidas → 401
+        // ❌ Usuario no encontrado o contraseña incorrecta
         if (!$user || !Hash::check($data['password'], $user->password)) {
             return response()->json(['message' => 'Credenciales incorrectas.'], 401);
         }
 
-        // Usuario inactivo → 403 (si manejas "estado")
+        // ❌ Usuario inactivo
         if (isset($user->estado) && (int) $user->estado === 0) {
             return response()->json([
                 'message' => 'Usuario inactivo. Contacta al administrador.',
             ], 403);
         }
 
-        // (Opcional) invalidar tokens previos para sesión única:
-        // $user->tokens()->delete();
+        // ❌ Profesor no aprobado
+        if ($user->idrol === 2 && $user->profesor && $user->profesor->estado_aprobacion !== 'aprobado') {
+            return response()->json([
+                'message' => 'Su cuenta de profesor aún no fue aprobada.',
+            ], 403);
+        }
 
+        // 🔑 Generar token
         $token = $user->createToken('api')->plainTextToken;
 
+        // 🔍 Suscripción activa (solo estudiantes)
+        $suscripcionActiva = null;
+        if ($user->idrol === 1 && $user->estudiante) {
+            $suscripcionActiva = Suscripcion::where('idestudiante', $user->estudiante->idestudiante)
+                ->where('estado', true)
+                ->where(function ($q) {
+                    $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', now());
+                })
+                ->orderByDesc('fecha_fin')
+                ->first();
+        }
+
         return response()->json([
-            'user'       => $user,                  // respeta $hidden en el modelo
+            'user' => [
+                'idusuario'          => $user->idusuario,
+                'idrol'              => $user->idrol,
+                'nombres'            => $user->nombres,
+                'correo'             => $user->correo,
+                'nombreusuario'      => $user->nombreusuario,
+                'estado_aprobacion'  => $user->profesor->estado_aprobacion ?? null,
+                'suscripcion_activa' => (bool) $suscripcionActiva,
+                'plan_id'            => $suscripcionActiva?->idplan,
+                'fecha_fin'          => $suscripcionActiva?->fecha_fin,
+            ],
             'token'      => $token,
-            'needs_role' => is_null($user->idrol),  // ajusta a tu lógica
-        ], 200);
+            'needs_role' => is_null($user->idrol),
+        ]);
     }
 
     /**
      * GET /api/me  (auth:sanctum)
-     * Devuelve el usuario autenticado.
      */
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        $user = $request->user();
+        $suscripcionActiva = null;
+
+        if ($user->idrol === 1 && $user->estudiante) {
+            $suscripcionActiva = Suscripcion::where('idestudiante', $user->estudiante->idestudiante)
+                ->where('estado', true)
+                ->where(function ($q) {
+                    $q->whereNull('fecha_fin')->orWhere('fecha_fin', '>=', now());
+                })
+                ->orderByDesc('fecha_fin')
+                ->first();
+        }
+
+        return response()->json([
+            'idusuario'          => $user->idusuario,
+            'idrol'              => $user->idrol,
+            'nombres'            => $user->nombres,
+            'correo'             => $user->correo,
+            'nombreusuario'      => $user->nombreusuario,
+            'estado_aprobacion'  => $user->profesor->estado_aprobacion ?? null,
+            'suscripcion_activa' => (bool) $suscripcionActiva,
+            'plan_id'            => $suscripcionActiva?->idplan,
+            'fecha_fin'          => $suscripcionActiva?->fecha_fin,
+        ]);
     }
 
     /**
-     * POST /api/logout  (auth:sanctum)
-     * Cierra SOLO el token actual.
+     * POST /api/logout
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()?->delete();
+        try {
+            // ✅ Eliminar token si existe
+            if ($request->user()) {
+                $request->user()->currentAccessToken()?->delete();
+            }
+        } catch (\Throwable $e) {
+            // ⚠️ No pasa nada si ya no hay token o usuario
+        }
 
+        // 💡 Siempre devolver 200 OK (incluso si no hay usuario autenticado)
         return response()->json([
-            'message' => 'Sesión cerrada',
+            'message' => 'Sesión cerrada correctamente.',
         ], 200);
     }
 }

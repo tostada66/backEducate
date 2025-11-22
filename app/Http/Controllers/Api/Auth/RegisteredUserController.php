@@ -16,7 +16,7 @@ class RegisteredUserController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'idrol'         => ['required','integer', Rule::exists('roles','idrol')],
+            'idrol'         => ['required','integer', Rule::exists('roles', 'idrol')],
             'nombres'       => ['required','string','max:100'],
             'apellidos'     => ['required','string','max:100'],
             'correo'        => ['required','email:rfc,dns','max:191','unique:usuarios,correo'],
@@ -40,7 +40,7 @@ class RegisteredUserController extends Controller
             'message' => 'Usuario registrado correctamente.',
             'user'    => [
                 'idusuario' => $user->idusuario, // 👈 necesario para paso 2 (nivel académico)
-                'nombre'    => $user->nombres.' '.$user->apellidos,
+                'nombre'    => $user->nombres . ' ' . $user->apellidos,
                 'correo'    => $user->correo,
                 'rol'       => $user->rolRel->nombre ?? null, // relación en modelo Usuario
             ]

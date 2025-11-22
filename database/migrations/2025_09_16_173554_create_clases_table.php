@@ -4,25 +4,38 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class () extends Migration {
     public function up(): void
     {
         Schema::create('clases', function (Blueprint $table) {
-            $table->id('idclase');
+            $table->bigIncrements('idclase');
             $table->unsignedBigInteger('idunidad');
 
-            $table->string('titulo');
+            // 📚 Datos de la clase
+            $table->string('titulo', 180);
             $table->text('descripcion')->nullable();
-
-            // 👇 antes estaba ->unsigned(), ya lo quitamos
             $table->integer('orden')->default(1);
 
-            $table->enum('estado', ['borrador', 'publicado'])->default('borrador');
+            // ⏱️ Duración total de la clase (sumatoria de sus videos)
+            // Guardado en segundos
+            $table->unsignedInteger('duracion_total')->default(0);
 
-            $table->softDeletes();
+            // ⚙️ Estado — igual que cursos y unidades
+            $table->enum('estado', [
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
+            ])->default('borrador');
+
+            // 🕒 Timestamps y SoftDeletes
             $table->timestamps();
+            $table->softDeletes();
 
+            // 🔗 Relación
             $table->foreign('idunidad')
                   ->references('idunidad')
                   ->on('unidades')

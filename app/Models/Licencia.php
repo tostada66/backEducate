@@ -1,16 +1,38 @@
 <?php
 
-namespace App\Models\Models;
+namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Licencia extends Model
 {
-    protected $table='licencias';
-    protected $primaryKey='idlicencia';
-    protected $fillable=['idcurso','idtermino','precio'];
+    use HasFactory;
 
-    public function curso(){ return $this->belongsTo(Curso::class,'idcurso','idcurso'); }
-    public function termino(){ return $this->belongsTo(TerminoLicencia::class,'idtermino','idtermino'); }
+    protected $table = 'licencias';
+    protected $primaryKey = 'idlicencia';
+
+    // Campos que puedes asignar masivamente
+    protected $fillable = [
+        'idcurso',
+        'idprofesor',
+        'num_clases',
+        'tarifa_por_clase',
+        'duracion_meses',
+        'costo',
+        'fechainicio',
+        'fechafin',
+        'estado',
+    ];
+
+    // 🔗 Relaciones
+    public function curso()
+    {
+        return $this->belongsTo(Curso::class, 'idcurso', 'idcurso');
+    }
+
+    public function profesor()
+    {
+        return $this->belongsTo(Profesor::class, 'idprofesor', 'idprofesor');
+    }
 }

@@ -4,8 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
-    public function up(): void {
+return new class () extends Migration {
+    public function up(): void
+    {
         Schema::create('unidades', function (Blueprint $table) {
             $table->bigIncrements('idunidad');
             $table->unsignedBigInteger('idcurso'); // FK hacia cursos
@@ -15,27 +16,40 @@ return new class extends Migration {
             $table->text('descripcion')->nullable();
             $table->text('objetivos')->nullable();
 
-            // 🖼 Imagen (opcional, como en cursos)
+            // 🖼 Imagen (opcional)
             $table->string('imagen', 255)->nullable();
 
-            // ⏱ Duración estimada (opcional, suma de clases de la unidad)
+            // ⏱ Duración estimada (puede quedar)
             $table->integer('duracion_estimada')->nullable();
 
-            // ⚙️ Estado
-            $table->enum('estado', ['borrador','publicado'])->default('borrador');
+            // ⏱ Duración total real (suma de las clases)
+            $table->unsignedInteger('duracion_total')->default(0);
 
-            // Timestamps
+            // ⚙️ Estado (igual que cursos)
+            $table->enum('estado', [
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
+            ])->default('borrador');
+
+            // 🕒 Timestamps y soft delete
             $table->timestamps();
             $table->softDeletes();
 
-            // Relación con cursos
+            // 🔗 Relación con cursos
             $table->foreign('idcurso')
-                  ->references('idcurso')->on('cursos')
+                  ->references('idcurso')
+                  ->on('cursos')
                   ->cascadeOnDelete();
         });
     }
 
-    public function down(): void {
+    public function down(): void
+    {
         Schema::dropIfExists('unidades');
     }
 };

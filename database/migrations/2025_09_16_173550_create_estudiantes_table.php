@@ -4,8 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
-    public function up(): void {
+return new class () extends Migration {
+    public function up(): void
+    {
         Schema::create('estudiantes', function (Blueprint $table) {
             $table->bigIncrements('idestudiante');
             $table->unsignedBigInteger('idusuario')->unique();
@@ -15,5 +16,8 @@ return new class extends Migration {
             $table->foreign('idusuario')->references('idusuario')->on('usuarios')->cascadeOnDelete();
         });
     }
-    public function down(): void { Schema::dropIfExists('estudiantes'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('estudiantes');
+    }
 };

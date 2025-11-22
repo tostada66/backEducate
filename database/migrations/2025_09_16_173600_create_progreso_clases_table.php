@@ -4,8 +4,9 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
-    public function up(): void {
+return new class () extends Migration {
+    public function up(): void
+    {
         Schema::create('progreso_clases', function (Blueprint $table) {
             $table->bigIncrements('idprogreso');
             $table->unsignedBigInteger('idmatricula');
@@ -20,5 +21,8 @@ return new class extends Migration {
             $table->unique(['idmatricula','idclase']);
         });
     }
-    public function down(): void { Schema::dropIfExists('progreso_clases'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('progreso_clases');
+    }
 };
