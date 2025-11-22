@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class Unidad extends Model
 {
@@ -18,86 +19,100 @@ class Unidad extends Model
         'descripcion',
         'objetivos',
         'imagen',
-        'duracion_estimada',
         'estado',
+        'duracion_total', // ⚠️ NUEVO: duración física acumulada
     ];
 
-    protected $appends = ['duracion_total'];
+    protected $casts = [
+        'duracion_total' => 'integer',
+        'deleted_at' => 'datetime',
+    ];
 
-    /* ───────────────────────────────
+    /* ============================================================
      * 🔗 RELACIONES
-     * ─────────────────────────────── */
+     * ==========================================================*/
 
-    // 📘 Cada unidad pertenece a un curso
     public function curso()
     {
         return $this->belongsTo(Curso::class, 'idcurso', 'idcurso');
     }
 
-    // 🎥 Cada unidad tiene muchas clases
     public function clases()
     {
-        return $this->hasMany(Clase::class, 'idunidad', 'idunidad');
+        return $this->hasMany(Clase::class, 'idunidad', 'idunidad')
+                    ->orderBy('orden');
     }
 
-    // 🧠 Cada unidad puede tener un examen asociado
-    // 🧠 Cada unidad puede tener un examen asociado
     public function examen()
     {
         return $this->hasOne(Examen::class, 'idunidad', 'idunidad');
     }
 
-    // 🧠 Compatibilidad con progreso (permite acceder como colección)
     public function examenes()
     {
         return $this->hasMany(Examen::class, 'idunidad', 'idunidad');
     }
 
-    // 🎮 Cada unidad puede tener varios juegos asignados
     public function juegos()
     {
         return $this->hasMany(CursoJuego::class, 'idunidad', 'idunidad');
     }
 
-    /* ───────────────────────────────
-     * ⏱️ ACCESSOR: Duración total
-     * ─────────────────────────────── */
-    public function getDuracionTotalAttribute()
-    {
-        if ($this->relationLoaded('clases')) {
-            return $this->clases->sum(fn ($clase) => $clase->duracion_total);
-        }
+    /* ============================================================
+     * 🔁 RECÁLCULO AUTOMÁTICO DE DURACIONES
+     * ==========================================================*/
 
-        return $this->clases()
-            ->with('contenidos')
-            ->get()
-            ->sum(fn ($clase) => $clase->duracion_total);
+    public function recalcularDuracion()
+    {
+        // 1️⃣ Duración de la unidad = suma de clases
+        $this->duracion_total = $this->clases()->sum('duracion_total');
+        $this->saveQuietly();
+
+        // 2️⃣ Recalcular duración del curso
+        $curso = $this->curso;
+        if ($curso) {
+            $curso->duracion_total = $curso->unidades()->sum('duracion_total');
+            $curso->saveQuietly();
+        }
     }
 
-    /* ───────────────────────────────
-     * 🔁 SINCRONIZAR ESTADOS AUTOMÁTICAMENTE
-     * ─────────────────────────────── */
+    /* ============================================================
+     * EVENTOS
+     * ==========================================================*/
+
     protected static function booted()
     {
-        static::updated(function ($unidad) {
-            // Solo si realmente cambió el estado
+        // ▶ Se recalcula cuando se modifica o elimina la unidad
+        static::saved(function (Unidad $unidad) {
+            $unidad->recalcularDuracion();
+        });
+
+        static::deleted(function (Unidad $unidad) {
+            $unidad->recalcularDuracion();
+        });
+
+        // ▶ Cuando cambia el estado, afectamos a clases y contenidos
+        static::updated(function (Unidad $unidad) {
             if ($unidad->wasChanged('estado')) {
                 $nuevoEstado = $unidad->estado;
 
-                // 🔹 Obtener clases asociadas
-                $idsClases = \App\Models\Clase::where('idunidad', $unidad->idunidad)
-                    ->pluck('idclase');
+                // Clases
+                $idsClases = Clase::where('idunidad', $unidad->idunidad)->pluck('idclase');
 
                 if ($idsClases->isNotEmpty()) {
-                    // 🔁 Actualizar clases
-                    \App\Models\Clase::whereIn('idclase', $idsClases)
-                        ->update(['estado' => $nuevoEstado]);
-
-                    // 🔁 Actualizar contenidos
-                    \App\Models\Contenido::whereIn('idclase', $idsClases)
-                        ->update(['estado' => $nuevoEstado]);
+                    Clase::whereIn('idclase', $idsClases)->update(['estado' => $nuevoEstado]);
+                    Contenido::whereIn('idclase', $idsClases)->update(['estado' => $nuevoEstado]);
                 }
             }
         });
+    }
+
+    /* ============================================================
+     * SCOPES (SIN WARNINGS)
+     * ==========================================================*/
+
+    public function scopeActivas(Builder $query)
+    {
+        return $query->where('estado', 'publicado');
     }
 }

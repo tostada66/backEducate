@@ -25,15 +25,18 @@ return new class () extends Migration {
             $table->float('promedio_resenas', 3, 2)->default(0)->comment('Promedio de puntuación de reseñas');
             $table->unsignedInteger('total_resenas')->default(0)->comment('Número total de reseñas del curso');
 
+            // ⏱️ Duración total del curso (suma de unidades y clases)
+            $table->unsignedInteger('duracion_total')->default(0);
+
             // ⚙️ Estado del curso y timestamps
             $table->enum('estado', [
-                'borrador',              // Curso recién creado
-                'en_revision',           // Enviado al admin para revisión
-                'oferta_enviada',        // Admin envió una oferta
-                'pendiente_aceptacion',  // Profesor debe aceptar/rechazar oferta
-                'publicado',             // Curso activo en la plataforma
-                'rechazado',             // Curso rechazado por el admin o profesor
-                'archivado'              // Curso antiguo o retirado
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
             ])->default('borrador');
 
             $table->timestamps();

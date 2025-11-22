@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class Curso extends Model
 {
@@ -11,8 +12,6 @@ class Curso extends Model
 
     protected $table = 'cursos';
     protected $primaryKey = 'idcurso';
-    public $incrementing = true;
-    protected $keyType = 'int';
 
     protected $fillable = [
         'idprofesor',
@@ -25,13 +24,17 @@ class Curso extends Model
         'estado',
         'promedio_resenas',
         'total_resenas',
+        'duracion_total', // ⚠️ NUEVO: duración física
     ];
 
-    protected $appends = ['duracion_total'];
+    protected $casts = [
+        'duracion_total' => 'integer',
+        'deleted_at' => 'datetime',
+    ];
 
-    /* ───────────────────────────────
+    /* ======================================================
      * 🔗 RELACIONES PRINCIPALES
-     * ─────────────────────────────── */
+     * =====================================================*/
 
     public function profesor()
     {
@@ -45,7 +48,8 @@ class Curso extends Model
 
     public function unidades()
     {
-        return $this->hasMany(Unidad::class, 'idcurso', 'idcurso');
+        return $this->hasMany(Unidad::class, 'idcurso', 'idcurso')
+                    ->orderBy('idunidad');
     }
 
     public function clases()
@@ -70,22 +74,17 @@ class Curso extends Model
         return $this->hasMany(Examen::class, 'idcurso', 'idcurso');
     }
 
-    // 🎮 Nuevo: Juegos a través de las unidades
     public function juegos()
     {
         return $this->hasManyThrough(
             CursoJuego::class,
             Unidad::class,
-            'idcurso',       // Foreign key en 'unidades'
-            'idunidad',      // Foreign key en 'curso_juego'
-            'idcurso',       // Local key en 'cursos'
-            'idunidad'       // Local key en 'unidades'
+            'idcurso',
+            'idunidad',
+            'idcurso',
+            'idunidad'
         );
     }
-
-    // 👇 Eliminadas las relaciones directas que usaban idcurso:
-    // public function cursoJuegos() {...}
-    // public function juegos() {...} ← reemplazada por la nueva versión
 
     public function oferta()
     {
@@ -102,49 +101,65 @@ class Curso extends Model
         return $this->hasMany(Observacion::class, 'idcurso', 'idcurso');
     }
 
-    /* ───────────────────────────────
-     * ⏱️ ACCESSOR: Duración total
-     * ─────────────────────────────── */
-    public function getDuracionTotalAttribute()
-    {
-        if ($this->relationLoaded('unidades')) {
-            return $this->unidades->sum(fn($unidad) => $unidad->duracion_total);
-        }
+    /* ======================================================
+     * 🔁 RECÁLCULO DE DURACIÓN
+     * =====================================================*/
 
-        return $this->unidades()
-            ->with('clases.contenidos')
-            ->get()
-            ->sum(fn($unidad) => $unidad->duracion_total);
+    public function recalcularDuracion()
+    {
+        // 1️⃣ Sumar duración física de todas las unidades
+        $this->duracion_total = $this->unidades()->sum('duracion_total');
+        $this->saveQuietly();
     }
 
-    /* ───────────────────────────────
-     * 🔁 SINCRONIZAR ESTADOS AUTOMÁTICAMENTE
-     * ─────────────────────────────── */
+    /* ======================================================
+     * EVENTS → AUTO SYNC
+     * =====================================================*/
+
     protected static function booted()
     {
-        static::updated(function ($curso) {
-            if ($curso->wasChanged('estado')) {
-                $nuevoEstado = $curso->estado;
+        // Cuando este curso cambia, si cambia estado, lo propagamos
+        static::updated(function (Curso $curso) {
 
-                $idsUnidades = \App\Models\Unidad::where('idcurso', $curso->idcurso)
-                    ->pluck('idunidad');
+            /* ------------------------------
+             *  🔁 PROPAGAR ESTADO HIJO → UNIT → CLASE → CONTENIDO
+             * ------------------------------*/
+            if ($curso->wasChanged('estado')) {
+
+                $estado = $curso->estado;
+
+                $idsUnidades = Unidad::where('idcurso', $curso->idcurso)->pluck('idunidad');
 
                 if ($idsUnidades->isNotEmpty()) {
-                    \App\Models\Unidad::whereIn('idunidad', $idsUnidades)
-                        ->update(['estado' => $nuevoEstado]);
 
-                    $idsClases = \App\Models\Clase::whereIn('idunidad', $idsUnidades)
-                        ->pluck('idclase');
+                    Unidad::whereIn('idunidad', $idsUnidades)->update(['estado' => $estado]);
+
+                    $idsClases = Clase::whereIn('idunidad', $idsUnidades)->pluck('idclase');
 
                     if ($idsClases->isNotEmpty()) {
-                        \App\Models\Clase::whereIn('idclase', $idsClases)
-                            ->update(['estado' => $nuevoEstado]);
 
-                        \App\Models\Contenido::whereIn('idclase', $idsClases)
-                            ->update(['estado' => $nuevoEstado]);
+                        Clase::whereIn('idclase', $idsClases)->update(['estado' => $estado]);
+                        Contenido::whereIn('idclase', $idsClases)->update(['estado' => $estado]);
                     }
                 }
             }
         });
+
+        // Cuando se guarde o elimine una unidad ya lo recalcula Unidad->Curso
+        // Así que Curso ya NO necesita más eventos aquí.
+    }
+
+    /* ======================================================
+     * SCOPES (SIN WARNINGS)
+     * =====================================================*/
+
+    public function scopePublicado(Builder $query)
+    {
+        return $query->where('estado', 'publicado');
+    }
+
+    public function scopeActivos(Builder $query)
+    {
+        return $query->whereNull('deleted_at');
     }
 }

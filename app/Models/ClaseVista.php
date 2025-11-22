@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\ProgresoClase; // 👈 Importamos el modelo
+use App\Models\ProgresoClase;
 
 class ClaseVista extends Model
 {
@@ -82,26 +82,74 @@ class ClaseVista extends Model
     /* ─────────────── HELPERS ─────────────── */
 
     /**
-     * 📊 Actualiza el progreso del video según el segundo actual.
+     * 📊 Aplica una muestra de progreso de forma MONÓTONA (nunca baja).
+     *
+     * Reglas de “aplicación” (anti-ruido):
+     *  - Si supera un delta mínimo de segundos desde el máximo histórico, o
+     *  - Si cruza un checkpoint (%): 25, 50, 75 (y 60 para completado), o
+     *  - Si llega prácticamente al final del video.
+     *
+     * @param int   $current      Segundo actual reportado por el cliente
+     * @param int   $duration     Duración total del video (≥1)
+     * @param int   $umbral       % para marcar completado (default 60)
+     * @param int   $minDeltaS    Delta mínimo en segundos para aplicar (default 300s)
+     * @param array $checkpoints  % en los que conviene guardar (default [25,50,75,100])
+     * @return self
      */
-    public function applySample(int $current, int $duration, int $umbral = 60): self
-    {
+    public function applySample(
+        int $current,
+        int $duration,
+        int $umbral = 60,
+        int $minDeltaS = 300,
+        array $checkpoints = [25, 50, 75, 100]
+    ): self {
         $duration = max(1, $duration);
         $current  = max(0, min($current, $duration));
 
-        $prevMax    = (int) $this->ultimo_segundo;
-        $prevVistos = (int) $this->segundos_vistos;
+        // Estado previo (histórico)
+        $prevMaxSeg   = (int) ($this->ultimo_segundo ?? 0);
+        $prevVistos   = (int) ($this->segundos_vistos ?? 0);
+        $prevPct      = (int) ($this->porcentaje ?? 0);
+        $prevComplete = (bool) ($this->completado ?? false);
 
-        $delta            = max(0, $current - $prevMax);
-        $segundos_vistos  = min($duration, $prevVistos + $delta);
-        $ultimo_segundo   = max($prevMax, $current);
-        $porcentaje       = (int) floor(($segundos_vistos / $duration) * 100);
-        $completado       = $porcentaje >= $umbral;
+        // Propuesta desde la muestra (sin aplicar aún)
+        $avanceSeg    = max(0, $current - $prevMaxSeg);               // retroceder no suma
+        $candMaxSeg   = max($prevMaxSeg, $current);                   // nuevo máximo de segundo
+        $candVistos   = min($duration, max($prevVistos, $prevMaxSeg + $avanceSeg));
+        $candPct      = max($prevPct, (int) floor(($candVistos / $duration) * 100));
+        $llegoFinal   = $current >= ($duration - 1);
 
-        $this->ultimo_segundo  = $ultimo_segundo;
-        $this->segundos_vistos = $segundos_vistos;
-        $this->porcentaje      = min(100, $porcentaje);
-        $this->completado      = $completado;
+        // Delta efectivo para videos cortos (< 5 min)
+        $effDeltaS = ($duration < 300) ? 60 : $minDeltaS;
+
+        // ¿Cruza algún checkpoint relevante?
+        $cruzaCheckpoint = false;
+        // nos aseguramos de incluir 60 en la lógica (por si no está en $checkpoints)
+        $todosCheckpoints = array_unique(array_merge($checkpoints, [$umbral]));
+        sort($todosCheckpoints);
+        foreach ($todosCheckpoints as $cp) {
+            if ($prevPct < $cp && $candPct >= $cp) {
+                $cruzaCheckpoint = true;
+                break;
+            }
+        }
+
+        // ¿Supera delta de segundos?
+        $superaDelta = ($candMaxSeg - $prevMaxSeg) >= $effDeltaS;
+
+        // ¿Cruza explícitamente el umbral de completado?
+        $cruzaUmbral = ($prevPct < $umbral && $candPct >= $umbral);
+
+        // Si no cumple ninguna condición de aplicación, NO modificamos (evita “bajar” o ruido)
+        if (!($superaDelta || $cruzaCheckpoint || $cruzaUmbral || $llegoFinal)) {
+            return $this;
+        }
+
+        // ✅ Aplicación monótona
+        $this->ultimo_segundo  = $candMaxSeg;
+        $this->segundos_vistos = $candVistos;
+        $this->porcentaje      = min(100, $candPct);
+        $this->completado      = $prevComplete || $candPct >= $umbral || $llegoFinal;
 
         return $this;
     }

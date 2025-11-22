@@ -16,15 +16,19 @@ return new class () extends Migration {
             $table->text('descripcion')->nullable();
             $table->integer('orden')->default(1);
 
+            // ⏱️ Duración total de la clase (sumatoria de sus videos)
+            // Guardado en segundos
+            $table->unsignedInteger('duracion_total')->default(0);
+
             // ⚙️ Estado — igual que cursos y unidades
             $table->enum('estado', [
-                'borrador',              // Recién creada
-                'en_revision',           // En revisión por el admin
-                'oferta_enviada',        // Admin envió oferta (solo reflejo del curso)
-                'pendiente_aceptacion',  // Esperando respuesta del profesor
-                'publicado',             // Activa y visible
-                'rechazado',             // Rechazada por admin
-                'archivado'              // Desactivada o antigua
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
             ])->default('borrador');
 
             // 🕒 Timestamps y SoftDeletes

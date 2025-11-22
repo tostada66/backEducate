@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Builder;
 
 class Clase extends Model
 {
@@ -18,36 +19,38 @@ class Clase extends Model
         'titulo',
         'descripcion',
         'orden',
-        'estado', // borrador, publicado, etc.
+        'estado',
+        'duracion_total', // ⚠️ NUEVO: campo físico en la DB
     ];
 
-    protected $dates = ['deleted_at'];
-    protected $appends = ['duracion_total', 'miniatura_publica'];
+    protected $casts = [
+        'duracion_total' => 'integer',
+        'deleted_at' => 'datetime',
+    ];
 
-    /* ───────────────────────────────
+    protected $appends = ['miniatura_publica'];
+
+    /* ============================================================
      * 🔗 RELACIONES
-     * ─────────────────────────────── */
+     * ==========================================================*/
 
-    /** Unidad a la que pertenece */
     public function unidad()
     {
         return $this->belongsTo(Unidad::class, 'idunidad', 'idunidad');
     }
 
-    /** Todos los contenidos de la clase */
     public function contenidos()
     {
-        return $this->hasMany(Contenido::class, 'idclase', 'idclase')->orderBy('orden');
+        return $this->hasMany(Contenido::class, 'idclase', 'idclase')
+                    ->orderBy('orden');
     }
 
-    /** El único video principal de la clase */
     public function video()
     {
         return $this->hasOne(Contenido::class, 'idclase', 'idclase')
             ->where('tipo', 'video');
     }
 
-    /** Comentarios (raíz y respuestas anidadas) */
     public function comentarios()
     {
         return $this->hasMany(Comentario::class, 'idclase', 'idclase')
@@ -56,61 +59,77 @@ class Clase extends Model
                     ->orderByDesc('created_at');
     }
 
-    /** Progresos (vistas) de estudiantes */
     public function vistas()
     {
         return $this->hasMany(ClaseVista::class, 'idclase', 'idclase');
     }
 
-    /* ───────────────────────────────
+    /* ============================================================
      * ⏱️ ACCESSORS
-     * ─────────────────────────────── */
+     * ==========================================================*/
 
-    /** Suma de duración total de los videos (por ahora 1 video por clase) */
-    public function getDuracionTotalAttribute()
-    {
-        if ($this->relationLoaded('contenidos')) {
-            return $this->contenidos
-                ->where('tipo', 'video')
-                ->sum('duracion') ?? 0;
-        }
-
-        return $this->contenidos()
-            ->where('tipo', 'video')
-            ->sum('duracion') ?? 0;
-    }
-
-    /** Miniatura pública del video principal */
+    /** Miniatura del video principal */
     public function getMiniaturaPublicaAttribute()
     {
-        $video = $this->relationLoaded('video')
-            ? $this->video
-            : $this->video()->first();
-
+        $video = $this->relationLoaded('video') ? $this->video : $this->video()->first();
         return $video?->miniatura_publica;
     }
 
-    /* ───────────────────────────────
-     * 🧠 HELPERS / SCOPES
-     * ─────────────────────────────── */
+    /* ============================================================
+     * 🔁 SINCRONIZACIÓN DE DURACIONES
+     * ==========================================================*/
 
-    /** Devuelve el progreso (vista) del estudiante actual */
-    public function vistaDeEstudiante(int $idestudiante): ?ClaseVista
+    /** Recalcular duración cuando un Contenido cambia */
+    public function recalcularDuracion()
     {
-        return $this->vistas()
-            ->where('idestudiante', $idestudiante)
-            ->first();
+        // 1️⃣ Recalcular duración de la clase
+        $this->duracion_total = $this->contenidos()
+            ->where('tipo', 'video')
+            ->sum('duracion');
+
+        $this->saveQuietly();
+
+        // 2️⃣ Recalcular duración de la unidad
+        $unidad = $this->unidad;
+        if ($unidad) {
+            $unidad->duracion_total = $unidad->clases()->sum('duracion_total');
+            $unidad->saveQuietly();
+
+            // 3️⃣ Recalcular duración del curso
+            $curso = $unidad->curso;
+            if ($curso) {
+                $curso->duracion_total = $curso->unidades()->sum('duracion_total');
+                $curso->saveQuietly();
+            }
+        }
     }
 
-    /** Cargar clase con su video */
-    public function scopeWithVideo($query)
+    /* ============================================================
+     * EVENTS → se ejecuta cuando se guarda o elimina la clase
+     * ==========================================================*/
+
+    protected static function booted()
+    {
+        static::saved(function (Clase $clase) {
+            $clase->recalcularDuracion();
+        });
+
+        static::deleted(function (Clase $clase) {
+            $clase->recalcularDuracion();
+        });
+    }
+
+    /* ============================================================
+     * SCOPES SIN WARNINGS
+     * ==========================================================*/
+
+    public function scopeWithVideo(Builder $query)
     {
         return $query->with('video');
     }
 
-    /** Cargar clase con vista del estudiante */
-    public function scopeWithVistaDe($query, int $idestudiante)
+    public function scopeWithVistaDe(Builder $query, int $idestudiante)
     {
-        return $query->with(['vistas' => fn($q) => $q->where('idestudiante', $idestudiante)]);
+        return $query->with(['vistas' => fn (Builder $q) => $q->where('idestudiante', $idestudiante)]);
     }
 }

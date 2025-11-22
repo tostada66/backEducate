@@ -19,18 +19,21 @@ return new class () extends Migration {
             // 🖼 Imagen (opcional)
             $table->string('imagen', 255)->nullable();
 
-            // ⏱ Duración estimada (suma de clases de la unidad)
+            // ⏱ Duración estimada (puede quedar)
             $table->integer('duracion_estimada')->nullable();
 
-            // ⚙️ Estado (mismos valores que cursos)
+            // ⏱ Duración total real (suma de las clases)
+            $table->unsignedInteger('duracion_total')->default(0);
+
+            // ⚙️ Estado (igual que cursos)
             $table->enum('estado', [
-                'borrador',              // Recién creada
-                'en_revision',           // En revisión por admin
-                'oferta_enviada',        // Oferta enviada
-                'pendiente_aceptacion',  // Esperando decisión del profesor
-                'publicado',             // Activa y visible
-                'rechazado',             // Rechazada
-                'archivado'              // No disponible
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
             ])->default('borrador');
 
             // 🕒 Timestamps y soft delete
@@ -39,7 +42,8 @@ return new class () extends Migration {
 
             // 🔗 Relación con cursos
             $table->foreign('idcurso')
-                  ->references('idcurso')->on('cursos')
+                  ->references('idcurso')
+                  ->on('cursos')
                   ->cascadeOnDelete();
         });
     }

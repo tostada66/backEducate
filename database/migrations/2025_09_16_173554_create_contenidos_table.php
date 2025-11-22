@@ -27,21 +27,45 @@ return new class () extends Migration {
             // ⏱ Duración en segundos (videos)
             $table->unsignedInteger('duracion')->nullable();
 
+            // 🧩 Miniaturas de scrubbing (Plyr)
+            $table->string('thumb_vtt', 255)->nullable();
+            $table->unsignedSmallInteger('thumb_sprite_w')->nullable();
+            $table->unsignedSmallInteger('thumb_sprite_h')->nullable();
+
+            // 📊 Metadatos opcionales (ffprobe)
+            $table->unsignedSmallInteger('ancho')->nullable();
+            $table->unsignedSmallInteger('alto')->nullable();
+            $table->decimal('fps', 6, 3)->nullable();
+            $table->unsignedInteger('bitrate_kbps')->nullable();
+            $table->string('codec_video', 40)->nullable();
+            $table->string('codec_audio', 40)->nullable();
+            $table->string('mime_type', 80)->nullable();
+            $table->unsignedBigInteger('size_bytes')->nullable();
+
+            // ⚙️ Estado del procesamiento del video
+            $table->enum('estado_proceso', ['pendiente', 'procesando', 'listo', 'fallo'])->default('pendiente');
+            $table->timestamp('procesado_en')->nullable();
+            $table->text('error_proceso')->nullable();
+
+            // 🗂️ Extra
+            $table->string('storage_driver', 40)->nullable();
+            $table->string('hash_archivo', 64)->nullable();
+
             // 🔢 Orden de aparición en la clase
             $table->integer('orden')->default(1);
 
             // ⚙️ Estado (coherente con cursos/unidades/clases)
             $table->enum('estado', [
-                'borrador',              // Recién creado
-                'en_revision',           // En revisión
-                'oferta_enviada',        // Oferta enviada
-                'pendiente_aceptacion',  // Esperando respuesta
-                'publicado',             // Visible en plataforma
-                'rechazado',             // Rechazado por revisión
-                'archivado'              // Antiguo o inactivo
+                'borrador',
+                'en_revision',
+                'oferta_enviada',
+                'pendiente_aceptacion',
+                'publicado',
+                'rechazado',
+                'archivado'
             ])->default('borrador');
 
-            // 🕒 Fechas
+            // 🕒 Fechas + Soft Delete
             $table->timestamps();
             $table->softDeletes();
 
@@ -50,11 +74,12 @@ return new class () extends Migration {
                 ->references('idclase')->on('clases')
                 ->cascadeOnDelete();
 
-            // 🧩 Restricción única: no repetir orden dentro de una clase
-            $table->unique(['idclase', 'orden']);
+            // 🧩 Unique por clase+orden PERO respetando soft deletes
+            $table->unique(['idclase', 'orden', 'deleted_at'], 'contenidos_idclase_orden_deleted_unique');
 
-            // ⚡ Índice de búsqueda
-            $table->index('idclase');
+            // ⚡ Índices útiles
+            $table->index(['idclase', 'deleted_at'], 'contenidos_idclase_deleted_idx');
+            $table->index(['idclase', 'tipo', 'estado', 'deleted_at'], 'contenidos_listas_idx');
         });
     }
 
