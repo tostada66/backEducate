@@ -26,9 +26,9 @@ class CursoJuegoController extends Controller
             });
 
         return response()->json([
-            'ok' => true,
+            'ok'    => true,
             'total' => $juegos->count(),
-            'data' => $juegos,
+            'data'  => $juegos,
         ]);
     }
 
@@ -41,7 +41,7 @@ class CursoJuegoController extends Controller
 
         if (!$cursoJuego) {
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'Juego no encontrado en esta unidad.',
             ], 404);
         }
@@ -51,7 +51,7 @@ class CursoJuegoController extends Controller
             : null;
 
         return response()->json([
-            'ok' => true,
+            'ok'   => true,
             'data' => $cursoJuego,
         ]);
     }
@@ -63,10 +63,10 @@ class CursoJuegoController extends Controller
     public function store(Request $request, $idunidad)
     {
         $validated = $request->validate([
-            'idjuego'      => 'required|exists:juegos,idjuego',
-            'nombre_tema'  => 'nullable|string|max:150',
-            'nivel'        => 'nullable|integer|min:1|max:10',
-            'imagen'       => 'nullable|file|image|max:2048',
+            'idjuego'     => 'required|exists:juegos,idjuego',
+            'nombre_tema' => 'nullable|string|max:150',
+            'nivel'       => 'nullable|integer|min:1|max:10',
+            'imagen'      => 'nullable|file|image|max:2048',
         ]);
 
         $cursoJuego = new CursoJuego();
@@ -144,7 +144,7 @@ class CursoJuegoController extends Controller
 
         if (!$cursoJuego) {
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'Juego no encontrado en esta unidad.',
             ], 404);
         }
@@ -183,6 +183,64 @@ class CursoJuegoController extends Controller
     }
 
     /**
+     * 🟥 Dar de baja un juego de la unidad (marcar como inactivo)
+     * PATCH /api/curso-juego/{idcursojuego}/baja
+     */
+    public function darDeBaja($idcursojuego)
+    {
+        $cursoJuego = CursoJuego::find($idcursojuego);
+
+        if (!$cursoJuego) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Juego no encontrado.',
+            ], 404);
+        }
+
+        $cursoJuego->activo = false;
+        $cursoJuego->save();
+
+        $cursoJuego->imagen_url = $cursoJuego->imagen
+            ? asset('storage/' . ltrim($cursoJuego->imagen, '/'))
+            : null;
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Juego dado de baja correctamente.',
+            'data'    => $cursoJuego,
+        ]);
+    }
+
+    /**
+     * 🟢 Reactivar juego de la unidad
+     * PATCH /api/curso-juego/{idcursojuego}/reactivar
+     */
+    public function reactivar($idcursojuego)
+    {
+        $cursoJuego = CursoJuego::find($idcursojuego);
+
+        if (!$cursoJuego) {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Juego no encontrado.',
+            ], 404);
+        }
+
+        $cursoJuego->activo = true;
+        $cursoJuego->save();
+
+        $cursoJuego->imagen_url = $cursoJuego->imagen
+            ? asset('storage/' . ltrim($cursoJuego->imagen, '/'))
+            : null;
+
+        return response()->json([
+            'ok'      => true,
+            'message' => 'Juego reactivado correctamente.',
+            'data'    => $cursoJuego,
+        ]);
+    }
+
+    /**
      * ❌ Eliminar juego de la unidad
      */
     public function destroy($idcursojuego)
@@ -191,7 +249,7 @@ class CursoJuegoController extends Controller
 
         if (!$cursoJuego) {
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'Juego no encontrado.',
             ], 404);
         }
@@ -203,7 +261,7 @@ class CursoJuegoController extends Controller
         $cursoJuego->delete();
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Juego eliminado correctamente de la unidad.',
         ]);
     }

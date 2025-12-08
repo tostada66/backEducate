@@ -44,7 +44,6 @@ class ProfileController extends Controller
         if ($user->estudiante && $user->estudiante->categorias) {
             $user->estudiante->categorias->transform(function ($cat) {
                 $cat->seleccionado = true;
-
                 return $cat;
             });
         }
@@ -61,7 +60,6 @@ class ProfileController extends Controller
         if ($user->estudiante && $user->estudiante->categorias) {
             $user->estudiante->categorias->transform(function ($cat) {
                 $cat->seleccionado = $cat->seleccionado ?? true;
-
                 return $cat;
             });
         }
@@ -78,22 +76,25 @@ class ProfileController extends Controller
                 'estado'         => $user->estado,
                 'foto_url'       => $user->foto_url,
 
-                // perfil extendido
+                // 🔹 perfil extendido (profesor)
                 'linkedin_url'   => $user->perfil->linkedin_url ?? null,
                 'github_url'     => $user->perfil->github_url ?? null,
                 'web_url'        => $user->perfil->web_url ?? null,
                 'bio'            => $user->perfil->bio ?? null,
 
-                // estudiante
+                // 🔹 datos del ESTUDIANTE (nuevo)
                 'nivelacademico' => $user->estudiante->nivelacademico ?? null,
+                'escuela'        => $user->estudiante->escuela ?? null,
+                // usamos otro nombre para no chocar con "bio" del perfil
+                'biografia'      => $user->estudiante->bio ?? null,
 
-                // intereses/categorías
+                // 🔹 intereses/categorías
                 'categorias'     => $user->estudiante
                     ? $user->estudiante->categorias->map(fn ($cat) => [
-                        'idcategoria' => $cat->idcategoria,
-                        'nombre'      => $cat->nombre,
-                        'descripcion' => $cat->descripcion,
-                        'seleccionado' => true, // 👈 clave para mostrar en frontend
+                        'idcategoria'  => $cat->idcategoria,
+                        'nombre'       => $cat->nombre,
+                        'descripcion'  => $cat->descripcion,
+                        'seleccionado' => true,
                     ])
                     : [],
             ],
@@ -117,10 +118,14 @@ class ProfileController extends Controller
 
         // Actualizar perfil extendido
         $perfil = PerfilUsuario::firstOrCreate(['idusuario' => $user->idusuario]);
-        $perfil->fill(collect($data)->only(['linkedin_url', 'github_url', 'web_url', 'bio'])->toArray());
+        $perfil->fill(
+            collect($data)->only(['linkedin_url', 'github_url', 'web_url', 'bio'])->toArray()
+        );
         $perfil->save();
 
-        return $this->formatUserResponse($user->fresh(['estudiante.categorias', 'perfil', 'rolRel']));
+        return $this->formatUserResponse(
+            $user->fresh(['estudiante.categorias', 'perfil', 'rolRel'])
+        );
     }
 
     /**
@@ -144,6 +149,8 @@ class ProfileController extends Controller
             $user->save();
         }
 
-        return $this->formatUserResponse($user->fresh(['estudiante.categorias', 'perfil', 'rolRel']));
+        return $this->formatUserResponse(
+            $user->fresh(['estudiante.categorias', 'perfil', 'rolRel'])
+        );
     }
 }

@@ -14,6 +14,7 @@ class Usuario extends Authenticatable implements CanResetPasswordContract
     use Notifiable;
     use CanResetPassword;
 
+    // ⚙️ Configuración base del modelo
     protected $table = 'usuarios';
     protected $primaryKey = 'idusuario';
     public $incrementing = true;
@@ -85,15 +86,28 @@ class Usuario extends Authenticatable implements CanResetPasswordContract
         return $this->hasMany(Factura::class, 'idusuario', 'idusuario');
     }
 
-    // 🗒️ Nueva relación: observaciones (comentarios de revisión, rechazos, etc.)
+    // 🗒️ Observaciones (comentarios de revisión, rechazos, etc.)
     public function observaciones()
     {
         return $this->hasMany(Observacion::class, 'idusuario', 'idusuario');
     }
 
-    // 💬 Nueva relación: comentarios en clases (tipo YouTube)
+    // 💬 Comentarios en clases (tipo YouTube)
     public function comentarios()
     {
         return $this->hasMany(Comentario::class, 'idusuario', 'idusuario');
+    }
+
+    // 🔔 Notificaciones del usuario (admin, profe o estudiante)
+    public function notificaciones()
+    {
+        return $this->hasMany(Notificacion::class, 'idusuario', 'idusuario');
+    }
+
+    // 🔔 (Opcional) Solo notificaciones no leídas
+    public function notificacionesNoLeidas()
+    {
+        return $this->hasMany(Notificacion::class, 'idusuario', 'idusuario')
+                    ->whereNull('leido_en');
     }
 }

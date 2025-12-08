@@ -28,14 +28,16 @@ class JuegoReciclajeController extends Controller
             ->take($cantidad)
             ->get()
             ->map(function ($i) {
-                $i->imagen_url = $i->imagen ? asset('storage/' . ltrim($i->imagen, '/')) : null;
+                $i->imagen_url = $i->imagen
+                    ? asset('storage/' . ltrim($i->imagen, '/'))
+                    : null;
                 return $i;
             });
 
         return response()->json([
-            'ok' => true,
+            'ok'       => true,
             'cantidad' => $items->count(),
-            'data' => $items,
+            'data'     => $items,
         ]);
     }
 
@@ -66,9 +68,9 @@ class JuegoReciclajeController extends Controller
         ]);
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Intento guardado correctamente.',
-            'data' => $intento,
+            'data'    => $intento,
         ], 201);
     }
 
@@ -86,14 +88,16 @@ class JuegoReciclajeController extends Controller
             ->orderBy('iditem', 'desc')
             ->get()
             ->map(function ($i) {
-                $i->imagen_url = $i->imagen ? asset('storage/' . ltrim($i->imagen, '/')) : null;
+                $i->imagen_url = $i->imagen
+                    ? asset('storage/' . ltrim($i->imagen, '/'))
+                    : null;
                 return $i;
             });
 
         return response()->json([
-            'ok' => true,
+            'ok'    => true,
             'total' => $items->count(),
-            'data' => $items,
+            'data'  => $items,
         ]);
     }
 
@@ -106,7 +110,7 @@ class JuegoReciclajeController extends Controller
         $items = $request->input('items', []);
         if (empty($items)) {
             return response()->json([
-                'ok' => false,
+                'ok'      => false,
                 'message' => 'No se enviaron ítems.',
             ], 400);
         }
@@ -115,8 +119,8 @@ class JuegoReciclajeController extends Controller
         foreach ($items as $i) {
             $item = new JuegoReciclajeItem();
             $item->idcursojuego = $idcursojuego;
-            $item->nombre = $i['nombre'] ?? null;
-            $item->tipo = $i['tipo'] ?? null;
+            // 🔢 Sólo guardamos la categoría (tipo de operación matemática)
+            $item->tipo   = $i['tipo'] ?? null; // ej: 'suma', 'resta', 'multiplicacion', etc.
             $item->activo = true;
 
             // 📸 Guardar imagen (base64 o ruta existente)
@@ -127,15 +131,17 @@ class JuegoReciclajeController extends Controller
             }
 
             $item->save();
-            $item->imagen_url = $item->imagen ? asset('storage/' . ltrim($item->imagen, '/')) : null;
+            $item->imagen_url = $item->imagen
+                ? asset('storage/' . ltrim($item->imagen, '/'))
+                : null;
 
             $guardados[] = $item;
         }
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Ítems guardados correctamente.',
-            'data' => $guardados,
+            'data'    => $guardados,
         ], 201);
     }
 
@@ -147,34 +153,44 @@ class JuegoReciclajeController extends Controller
     {
         $item = JuegoReciclajeItem::find($iditem);
         if (!$item) {
-            return response()->json(['ok' => false, 'message' => 'Ítem no encontrado.'], 404);
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Ítem no encontrado.',
+            ], 404);
         }
 
         $data = $request->validate([
-            'nombre' => 'nullable|string|max:150',
-            'tipo' => 'nullable|string|max:50',
+            'tipo'   => 'nullable|string|max:50',
             'imagen' => 'nullable',
             'activo' => 'nullable|boolean',
         ]);
 
         // 🔄 Actualizar imagen (si viene en base64)
         if (!empty($data['imagen']) && str_starts_with($data['imagen'], 'data:image')) {
-            if ($item->imagen) Storage::disk('public')->delete($item->imagen);
+            if ($item->imagen) {
+                Storage::disk('public')->delete($item->imagen);
+            }
             $item->imagen = $this->guardarImagenBase64($data['imagen'], 'juego_reciclaje');
         }
 
-        $item->fill([
-            'nombre' => $data['nombre'] ?? $item->nombre,
-            'tipo' => $data['tipo'] ?? $item->tipo,
-            'activo' => $data['activo'] ?? $item->activo,
-        ])->save();
+        // 🔄 Actualizar otros campos
+        if (array_key_exists('tipo', $data)) {
+            $item->tipo = $data['tipo'];
+        }
+        if (array_key_exists('activo', $data)) {
+            $item->activo = $data['activo'];
+        }
 
-        $item->imagen_url = $item->imagen ? asset('storage/' . ltrim($item->imagen, '/')) : null;
+        $item->save();
+
+        $item->imagen_url = $item->imagen
+            ? asset('storage/' . ltrim($item->imagen, '/'))
+            : null;
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Ítem actualizado correctamente.',
-            'data' => $item,
+            'data'    => $item,
         ]);
     }
 
@@ -186,14 +202,19 @@ class JuegoReciclajeController extends Controller
     {
         $item = JuegoReciclajeItem::find($iditem);
         if (!$item) {
-            return response()->json(['ok' => false, 'message' => 'Ítem no encontrado.'], 404);
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Ítem no encontrado.',
+            ], 404);
         }
 
-        if ($item->imagen) Storage::disk('public')->delete($item->imagen);
+        if ($item->imagen) {
+            Storage::disk('public')->delete($item->imagen);
+        }
         $item->delete();
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Ítem eliminado correctamente.',
         ]);
     }
@@ -203,11 +224,13 @@ class JuegoReciclajeController extends Controller
      * =========================================================== */
     private function guardarImagenBase64($base64, $carpeta = 'uploads')
     {
-        $data = explode(',', $base64);
-        $mime = explode('/', explode(';', $data[0])[0])[1];
+        $data      = explode(',', $base64);
+        $mime      = explode('/', explode(';', $data[0])[0])[1];
         $contenido = base64_decode($data[1]);
         $nombreArchivo = $carpeta . '/' . uniqid() . '.' . $mime;
+
         Storage::disk('public')->put($nombreArchivo, $contenido);
+
         return $nombreArchivo;
     }
 }

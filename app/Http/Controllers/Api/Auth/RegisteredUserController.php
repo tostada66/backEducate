@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\Usuario;
+use App\Models\Notificacion; // 👈 IMPORTANTE: importar el modelo de notificaciones
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -34,6 +35,34 @@ class RegisteredUserController extends Controller
             'telefono'      => $data['telefono'],
             'password'      => Hash::make($data['password']),
         ]);
+
+        /**
+         * 🔔 Si el usuario registrado es PROFESOR (idrol = 2),
+         *     crear notificaciones para todos los ADMIN.
+         */
+        if ((int) $user->idrol === 2) { // 👈 ajusta si el id del rol profesor es otro
+            // Buscar admins por relación de rol
+            $admins = Usuario::whereHas('rolRel', function ($q) {
+                $q->where('nombre', 'admin'); // 👈 ajusta al nombre real del rol en tu tabla roles
+            })->get();
+
+            $nombreProfe = trim(($user->nombres ?? '') . ' ' . ($user->apellidos ?? ''));
+
+            foreach ($admins as $admin) {
+                Notificacion::crear(
+                    idusuario: $admin->idusuario,
+                    categoria: 'solicitudes', // se suma en resumenNotis.solicitudes
+                    tipo:      'nueva_solicitud_profesor',
+                    titulo:    'Nueva solicitud de profesor',
+                    mensaje:   "El usuario {$nombreProfe} se registró como profesor y requiere revisión.",
+                    url:       '/admin/solicitudes', // 👉 al hacer clic, lo lleva a la pantalla de solicitudes
+                    datos:     [
+                        'idusuario_profesor' => $user->idusuario,
+                        'nombre_profesor'    => $nombreProfe,
+                    ]
+                );
+            }
+        }
 
         return response()->json([
             'ok'      => true,

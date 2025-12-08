@@ -19,10 +19,11 @@ return new class extends Migration
                 ->cascadeOnDelete()
                 ->cascadeOnUpdate();
 
-            // ♻️ Datos del ítem
-            $table->string('nombre'); // Ej: 'Botella de plástico'
-            $table->string('tipo');   // Ej: 'plástico', 'papel', 'vidrio', 'orgánico'
-            $table->string('imagen')->nullable(); // ruta del ícono o imagen
+            // 🧮 Datos de la ficha
+            // tipo: 'suma', 'resta', 'multiplicacion', 'division', 'fraccion', 'potencia', etc.
+            $table->string('tipo');
+            // ruta del ícono o imagen (la operación dibujada)
+            $table->string('imagen')->nullable();
             $table->boolean('activo')->default(true);
 
             // 🕒 Auditoría

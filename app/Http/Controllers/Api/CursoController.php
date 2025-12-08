@@ -14,25 +14,34 @@ class CursoController extends Controller
      */
     public function index(Request $request)
     {
-    $user = $request->user();
-    $idrol = $user->idrol; // Usamos el ID numérico
+        $user = $request->user();
+        $idrol = $user->idrol; // Usamos el ID numérico
 
-    if ($idrol === 2) { // 👨‍🏫 Profesor
-        $cursos = Curso::where('idprofesor', $user->profesor->idprofesor)
-            ->with(['profesor.usuario', 'categoria'])
-            ->latest()
-            ->paginate(10);
-    } elseif ($idrol === 3) { // 🛠️ Administrador
-        $cursos = Curso::with(['profesor.usuario', 'categoria'])
-            ->latest()
-            ->paginate(10);
-    } else { // 🎓 Estudiante u otro rol
-        return response()->json(['message' => 'No autorizado'], 403);
-    }
+        if ($idrol === 2) { // 👨‍🏫 Profesor
+            $cursos = Curso::where('idprofesor', $user->profesor->idprofesor)
+                ->with([
+                    'profesor.usuario',
+                    'categoria',
+                    // 👇 para saber si el curso tiene edición activa (pendiente / en_edicion / en_revision)
+                    'edicionActiva',
+                ])
+                ->latest()
+                ->paginate(10);
+        } elseif ($idrol === 3) { // 🛠️ Administrador
+            $cursos = Curso::with([
+                    'profesor.usuario',
+                    'categoria',
+                    'edicionActiva',
+                ])
+                ->latest()
+                ->paginate(10);
+        } else { // 🎓 Estudiante u otro rol
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
 
-    $cursos->getCollection()->transform(fn($curso) => $this->mapUrls($curso));
+        $cursos->getCollection()->transform(fn ($curso) => $this->mapUrls($curso));
 
-    return response()->json($cursos);
+        return response()->json($cursos);
     }
 
     /**
@@ -84,7 +93,14 @@ class CursoController extends Controller
         $user = $request->user();
         $rol  = strtolower($user->rolRel?->nombre);
 
-        $curso = Curso::with(['profesor','unidades.clases.contenidos','categoria'])
+        // 👇 ahora también traemos la edición activa y el histórico de ediciones
+        $curso = Curso::with([
+                'profesor',
+                'unidades.clases.contenidos',
+                'categoria',
+                'edicionActiva',
+                'ediciones',
+            ])
             ->findOrFail($idcurso);
 
         if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
@@ -101,22 +117,46 @@ class CursoController extends Controller
      */
     public function update(Request $request, $idcurso)
     {
-        $curso = Curso::findOrFail($idcurso);
+        // 👉 Traemos también ediciones para poder consultar si hay ventana de edición
+        $curso = Curso::with('ediciones')->findOrFail($idcurso);
         $user  = $request->user();
         $rol   = strtolower($user->rolRel?->nombre);
 
+        // 🔐 1. Validar que el profesor sea dueño del curso
         if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        // ❌ No permitir cambios si ya está publicado o en revisión
-        if (in_array($curso->estado, ['publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'No puedes modificar un curso que está en revisión o publicado'
-            ], 403);
+        // 🔒 2. Reglas de bloqueo SOLO para profesor
+        if ($rol === 'profesor') {
+
+            // ⛔ Estados de negociación donde NO se puede tocar nada
+            if (in_array($curso->estado, ['en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No puedes modificar un curso que está en revisión u oferta pendiente'
+                ], 403);
+            }
+
+            // ⛔ Curso publicado: solo se puede editar si hay una edición aprobada (en_edicion)
+            if ($curso->estado === 'publicado') {
+
+                $tieneVentanaEdicion = $curso->ediciones()
+                    ->where('estado', 'en_edicion') // 👈 solo cuando el admin ya aprobó la edición
+                    ->exists();
+
+                if (!$tieneVentanaEdicion) {
+                    return response()->json([
+                        'ok'      => false,
+                        'message' => 'El curso está publicado. Debes solicitar una edición y esperar la aprobación del administrador antes de poder modificarlo.'
+                    ], 403);
+                }
+            }
+
+            // 👉 Estados "borrador" y "rechazado" sí pueden editarse libremente
         }
 
+        // 🛠 3. (Admin u otros roles pasan directo sin restricciones extra)
         $data = $request->validate([
             'nombre'      => 'sometimes|string|max:150',
             'descripcion' => 'nullable|string',
@@ -133,7 +173,7 @@ class CursoController extends Controller
             $curso->descripcion = $data['descripcion'];
         }
         if (isset($data['nivel'])) {
-            $curso->nivel       = $data['nivel'];
+            $curso->nivel = $data['nivel'];
         }
         if (isset($data['idcategoria'])) {
             $curso->idcategoria = $data['idcategoria'];
@@ -261,9 +301,6 @@ class CursoController extends Controller
     /**
      * 📖 Catálogo público (solo info básica)
      */
-    /**
- * 📖 Catálogo público (solo info básica)
- */
     public function catalogo()
     {
         $cursos = Curso::where('estado', 'publicado')
@@ -291,14 +328,13 @@ class CursoController extends Controller
         return response()->json($cursos);
     }
 
-
     /**
      * 👁 Mostrar curso público (con unidades)
      */
     public function showPublic($idcurso)
     {
         $curso = Curso::where('estado', 'publicado')
-            ->with(['profesor','categoria','unidades'])
+            ->with(['profesor', 'categoria', 'unidades'])
             ->findOrFail($idcurso);
 
         $this->mapUrls($curso);
@@ -315,10 +351,13 @@ class CursoController extends Controller
             ? asset('storage/' . ltrim($this->cleanPath($curso->imagen), '/'))
             : asset('storage/default_image.png');
 
-        foreach ($curso->unidades as $unidad) {
-            $unidad->imagen_url = $unidad->imagen
-                ? asset('storage/' . ltrim($this->cleanPath($unidad->imagen), '/'))
-                : asset('storage/default_image.png');
+        // Si no se han cargado unidades, evitamos error
+        if ($curso->relationLoaded('unidades')) {
+            foreach ($curso->unidades as $unidad) {
+                $unidad->imagen_url = $unidad->imagen
+                    ? asset('storage/' . ltrim($this->cleanPath($unidad->imagen), '/'))
+                    : asset('storage/default_image.png');
+            }
         }
 
         return $curso;

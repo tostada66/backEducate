@@ -21,8 +21,8 @@ class JuegosSeeder extends Seeder
                 'activo' => true,
             ],
             [
-                'nombre' => 'Reciclaje',
-                'descripcion' => 'Arrastra los residuos al contenedor correcto y aprende a clasificar materiales reciclables de forma divertida.',
+                'nombre' => 'Clasifica Operaciones',
+                'descripcion' => 'Arrastra cada ejercicio al tipo de operación correcta (suma, resta, multiplicación, división, fracciones, potencias, etc.) y refuerza tus habilidades matemáticas de forma divertida.',
                 'activo' => true,
             ],
         ];

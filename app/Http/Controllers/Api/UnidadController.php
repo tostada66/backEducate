@@ -32,15 +32,43 @@ class UnidadController extends Controller
      */
     public function store(Request $request, $idcurso)
     {
-        $curso = Curso::findOrFail($idcurso);
+        // 👉 Traemos también las ediciones para poder saber si hay ventana de edición
+        $curso = Curso::with('ediciones')->findOrFail($idcurso);
+        $user  = $request->user();
+        $rol   = strtolower($user->rolRel?->nombre);
 
-        if (in_array($curso->estado, [
-            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
-        ])) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'No puedes crear unidades mientras el curso esté en revisión o publicado'
-            ], 403);
+        // 🔐 Autorización básica
+        if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+        if (!in_array($rol, ['profesor', 'admin'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // 🔒 Reglas de bloqueo SOLO para profesor (admin pasa directo)
+        if ($rol === 'profesor') {
+            // ⛔ Estados de negociación donde NO se puede tocar nada
+            if (in_array($curso->estado, ['en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No puedes crear unidades mientras el curso esté en revisión u oferta pendiente'
+                ], 403);
+            }
+
+            // ⛔ Curso publicado: solo se puede crear si hay edición aprobada (en_edicion)
+            if ($curso->estado === 'publicado') {
+                $tieneVentanaEdicion = $curso->ediciones()
+                    ->where('estado', 'en_edicion')
+                    ->exists();
+
+                if (!$tieneVentanaEdicion) {
+                    return response()->json([
+                        'ok'      => false,
+                        'message' => 'El curso está publicado. Debes tener una edición aprobada para poder crear unidades.'
+                    ], 403);
+                }
+            }
+            // 👉 Estados "borrador" y "rechazado" sí pueden crear libremente
         }
 
         $data = $request->validate([
@@ -71,7 +99,7 @@ class UnidadController extends Controller
      */
     public function show(Request $request, $idcurso, $idunidad)
     {
-        $user = $request->user();
+        $user  = $request->user();
         $curso = Curso::findOrFail($idcurso);
 
         // 🧩 Incluimos clases, contenidos y examen
@@ -94,18 +122,18 @@ class UnidadController extends Controller
 
         // 📦 Respuesta completa para frontend
         return response()->json([
-            'idunidad' => $unidad->idunidad,
-            'titulo' => $unidad->titulo,
-            'descripcion' => $unidad->descripcion,
-            'duracion_total' => $unidad->duracion_total,
-            'imagen_url' => $unidad->imagen_url,
-            'clases' => $unidad->clases,
-            'examen' => $unidad->examen,
-            'tiene_examen' => $tieneExamen,
-            'matriculado' => $matriculado,
-            'curso' => [
+            'idunidad'      => $unidad->idunidad,
+            'titulo'        => $unidad->titulo,
+            'descripcion'   => $unidad->descripcion,
+            'duracion_total'=> $unidad->duracion_total,
+            'imagen_url'    => $unidad->imagen_url,
+            'clases'        => $unidad->clases,
+            'examen'        => $unidad->examen,
+            'tiene_examen'  => $tieneExamen,
+            'matriculado'   => $matriculado,
+            'curso'         => [
                 'idcurso' => $curso->idcurso,
-                'nombre' => $curso->nombre
+                'nombre'  => $curso->nombre
             ],
         ]);
     }
@@ -115,16 +143,44 @@ class UnidadController extends Controller
      */
     public function update(Request $request, $idcurso, $idunidad)
     {
-        $curso  = Curso::findOrFail($idcurso);
+        // 👉 Traemos ediciones para respetar la ventana de edición
+        $curso  = Curso::with('ediciones')->findOrFail($idcurso);
         $unidad = $curso->unidades()->findOrFail($idunidad);
+        $user   = $request->user();
+        $rol    = strtolower($user->rolRel?->nombre);
 
-        if (in_array($curso->estado, [
-            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
-        ])) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'No puedes modificar unidades mientras el curso esté en revisión o publicado'
-            ], 403);
+        // 🔐 Autorización básica
+        if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+        if (!in_array($rol, ['profesor', 'admin'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // 🔒 Reglas de bloqueo SOLO para profesor
+        if ($rol === 'profesor') {
+            // ⛔ Estados de negociación donde NO se puede tocar nada
+            if (in_array($curso->estado, ['en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No puedes modificar unidades mientras el curso esté en revisión u oferta pendiente'
+                ], 403);
+            }
+
+            // ⛔ Curso publicado: solo se puede editar si hay ventana de edición activa
+            if ($curso->estado === 'publicado') {
+                $tieneVentanaEdicion = $curso->ediciones()
+                    ->where('estado', 'en_edicion')
+                    ->exists();
+
+                if (!$tieneVentanaEdicion) {
+                    return response()->json([
+                        'ok'      => false,
+                        'message' => 'El curso está publicado. Debes tener una edición aprobada para poder modificar unidades.'
+                    ], 403);
+                }
+            }
+            // 👉 borrador / rechazado: ok
         }
 
         $data = $request->validate([
@@ -135,13 +191,13 @@ class UnidadController extends Controller
         ]);
 
         if (isset($data['titulo'])) {
-            $unidad->titulo      = $data['titulo'];
+            $unidad->titulo = $data['titulo'];
         }
         if (isset($data['descripcion'])) {
             $unidad->descripcion = $data['descripcion'];
         }
         if (isset($data['objetivos'])) {
-            $unidad->objetivos   = $data['objetivos'];
+            $unidad->objetivos = $data['objetivos'];
         }
 
         if ($request->hasFile('imagen')) {
@@ -156,24 +212,51 @@ class UnidadController extends Controller
     /**
      * 🗑 Eliminar unidad
      */
-    public function destroy($idcurso, $idunidad)
+    public function destroy(Request $request, $idcurso, $idunidad)
     {
-        $curso = Curso::findOrFail($idcurso);
+        // 👉 Traemos ediciones para controlar ventana de edición
+        $curso = Curso::with('ediciones')->findOrFail($idcurso);
+        $user  = $request->user();
+        $rol   = strtolower($user->rolRel?->nombre);
 
-        if (in_array($curso->estado, [
-            'publicado', 'en_revision', 'oferta_enviada', 'pendiente_aceptacion'
-        ])) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'No puedes eliminar unidades mientras el curso esté en revisión o publicado'
-            ], 403);
+        // 🔐 Autorización básica
+        if ($rol === 'profesor' && $curso->idprofesor !== $user->profesor->idprofesor) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+        if (!in_array($rol, ['profesor', 'admin'])) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // 🔒 Reglas de bloqueo SOLO para profesor
+        if ($rol === 'profesor') {
+            // ⛔ Estados de negociación donde NO se puede tocar nada
+            if (in_array($curso->estado, ['en_revision', 'oferta_enviada', 'pendiente_aceptacion'])) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => 'No puedes eliminar unidades mientras el curso esté en revisión u oferta pendiente'
+                ], 403);
+            }
+
+            // ⛔ Curso publicado: solo se puede eliminar si hay ventana de edición activa
+            if ($curso->estado === 'publicado') {
+                $tieneVentanaEdicion = $curso->ediciones()
+                    ->where('estado', 'en_edicion')
+                    ->exists();
+
+                if (!$tieneVentanaEdicion) {
+                    return response()->json([
+                        'ok'      => false,
+                        'message' => 'El curso está publicado. Debes tener una edición aprobada para poder eliminar unidades.'
+                    ], 403);
+                }
+            }
         }
 
         $unidad = $curso->unidades()->findOrFail($idunidad);
         $unidad->delete();
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Unidad eliminada correctamente'
         ]);
     }
@@ -183,7 +266,7 @@ class UnidadController extends Controller
      */
     public function catalogo(Request $request, $idcurso)
     {
-        $user = $request->user();
+        $user  = $request->user();
         $curso = Curso::where('estado', 'publicado')->findOrFail($idcurso);
 
         $unidades = $curso->unidades()
@@ -205,8 +288,8 @@ class UnidadController extends Controller
                     ->exists();
             }
 
-            $unidad->matriculado = $matriculado;
-            $unidad->tiene_examen = $unidad->examen && $unidad->examen->activo ? true : false;
+            $unidad->matriculado   = $matriculado;
+            $unidad->tiene_examen  = $unidad->examen && $unidad->examen->activo ? true : false;
 
             return $unidad;
         });
@@ -227,10 +310,10 @@ class UnidadController extends Controller
             foreach ($unidad->clases as $clase) {
                 if ($clase->relationLoaded('contenidos')) {
                     foreach ($clase->contenidos as $contenido) {
-                        $path = $this->cleanPath($contenido->url);
+                        $path       = $this->cleanPath($contenido->url);
                         $urlPublica = $path ? asset('storage/' . ltrim($path, '/')) : null;
-                        $contenido->archivo = $urlPublica;
-                        $contenido->url_publica = $urlPublica;
+                        $contenido->archivo      = $urlPublica;
+                        $contenido->url_publica  = $urlPublica;
                     }
                 }
             }
@@ -241,6 +324,10 @@ class UnidadController extends Controller
 
     private function cleanPath($path)
     {
-        return str_replace([url('storage') . '/', config('app.url') . '/storage/'], '', $path);
+        return str_replace(
+            [url('storage') . '/', config('app.url') . '/storage/'],
+            '',
+            $path
+        );
     }
 }

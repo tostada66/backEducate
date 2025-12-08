@@ -32,18 +32,14 @@ class ClaseController extends Controller
      */
     public function store(Request $request, $idcurso, $idunidad)
     {
-        $curso = Curso::findOrFail($idcurso);
+        // 🔎 cargamos curso con posible relación de edición activa
+        $curso = $this->cargarCursoConEdicion($idcurso);
 
-        // ❌ Bloqueo si el curso no se puede editar
-        if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
-        ])) {
+        // ❌ Bloqueo si el curso NO permite edición de estructura
+        if (! $this->cursoPermiteEditarEstructura($curso)) {
             return response()->json([
-                'ok' => false,
-                'message' => 'No puedes añadir clases mientras el curso esté en revisión o publicado'
+                'ok'      => false,
+                'message' => 'No puedes añadir clases mientras el curso esté en revisión o publicado sin una edición activa',
             ], 403);
         }
 
@@ -53,7 +49,7 @@ class ClaseController extends Controller
             'titulo'      => 'required|string|max:180',
             'descripcion' => 'nullable|string',
             'orden'       => 'nullable|integer',
-            'estado'      => 'in:borrador,publicado'
+            'estado'      => 'in:borrador,publicado',
         ]);
 
         $nextOrden = ($unidad->clases()->max('orden') ?? 0) + 1;
@@ -73,7 +69,7 @@ class ClaseController extends Controller
      */
     public function show($idcurso, $idunidad, $idclase)
     {
-        $curso = Curso::findOrFail($idcurso);
+        $curso  = Curso::findOrFail($idcurso);
         $unidad = $curso->unidades()->findOrFail($idunidad);
 
         $clase = $unidad->clases()
@@ -88,29 +84,25 @@ class ClaseController extends Controller
      */
     public function update(Request $request, $idcurso, $idunidad, $idclase)
     {
-        $curso = Curso::findOrFail($idcurso);
+        // 🔎 cargamos curso con posible edición activa
+        $curso = $this->cargarCursoConEdicion($idcurso);
 
-        // ❌ Bloqueo si curso no editable
-        if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
-        ])) {
+        // ❌ Bloqueo si curso no permite edición
+        if (! $this->cursoPermiteEditarEstructura($curso)) {
             return response()->json([
-                'ok' => false,
-                'message' => 'No puedes modificar clases mientras el curso esté en revisión o publicado'
+                'ok'      => false,
+                'message' => 'No puedes modificar clases mientras el curso esté en revisión o publicado sin una edición activa',
             ], 403);
         }
 
         $unidad = $curso->unidades()->findOrFail($idunidad);
-        $clase = $unidad->clases()->findOrFail($idclase);
+        $clase  = $unidad->clases()->findOrFail($idclase);
 
         $data = $request->validate([
             'titulo'      => 'sometimes|string|max:180',
             'descripcion' => 'nullable|string',
             'orden'       => 'nullable|integer',
-            'estado'      => 'in:borrador,publicado'
+            'estado'      => 'in:borrador,publicado',
         ]);
 
         $clase->update($data);
@@ -120,32 +112,27 @@ class ClaseController extends Controller
 
     /**
      * 🗑 Eliminar clase de una unidad
+     * 👉 Solo permitido si curso y clase están en borrador/rechazado.
      */
     public function destroy($idcurso, $idunidad, $idclase)
     {
-        $curso = Curso::findOrFail($idcurso);
+        $curso = $this->cargarCursoConEdicion($idcurso);
+        $unidad = $curso->unidades()->findOrFail($idunidad);
+        $clase  = $unidad->clases()->findOrFail($idclase);
 
-        // ❌ Bloqueo si curso no editable
-        if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
-        ])) {
+        // ❌ Solo antes de publicar: borrador o rechazado en curso Y clase
+        if (! $this->cursoPermiteEliminarClase($curso, $clase->estado)) {
             return response()->json([
-                'ok' => false,
-                'message' => 'No puedes eliminar clases mientras el curso esté en revisión o publicado'
+                'ok'      => false,
+                'message' => 'No puedes eliminar clases una vez que el curso está publicado o en revisión',
             ], 403);
         }
-
-        $unidad = $curso->unidades()->findOrFail($idunidad);
-        $clase = $unidad->clases()->findOrFail($idclase);
 
         $clase->delete();
 
         return response()->json([
             'ok'      => true,
-            'message' => 'Clase eliminada correctamente'
+            'message' => 'Clase eliminada correctamente',
         ]);
     }
 
@@ -154,18 +141,14 @@ class ClaseController extends Controller
      */
     public function cambiarOrden(Request $request, $idcurso, $idunidad, $idclase)
     {
-        $curso  = Curso::findOrFail($idcurso);
+        // 🔎 cargamos curso con edición
+        $curso = $this->cargarCursoConEdicion($idcurso);
 
-        // ❌ Bloqueo si curso no editable
-        if (in_array($curso->estado, [
-            'publicado',
-            'en_revision',
-            'oferta_enviada',
-            'pendiente_aceptacion'
-        ])) {
+        // ❌ Bloqueo si curso no editable (mismo criterio que update/create)
+        if (! $this->cursoPermiteEditarEstructura($curso)) {
             return response()->json([
-                'ok' => false,
-                'message' => 'No puedes reordenar clases mientras el curso esté en revisión o publicado'
+                'ok'      => false,
+                'message' => 'No puedes reordenar clases mientras el curso esté en revisión o publicado sin una edición activa',
             ], 403);
         }
 
@@ -174,10 +157,10 @@ class ClaseController extends Controller
 
         $direccion = $request->input('direccion'); // "up" o "down"
 
-        if (!in_array($direccion, ['up', 'down'])) {
+        if (! in_array($direccion, ['up', 'down'])) {
             return response()->json([
-                'ok' => false,
-                'message' => 'Dirección inválida'
+                'ok'      => false,
+                'message' => 'Dirección inválida',
             ], 422);
         }
 
@@ -195,9 +178,9 @@ class ClaseController extends Controller
             }
 
             if ($swap) {
-                $tempOrden    = -1;
-                $oldOrden     = $clase->orden;
-                $swapOrden    = $swap->orden;
+                $tempOrden = -1;
+                $oldOrden  = $clase->orden;
+                $swapOrden = $swap->orden;
 
                 $clase->update(['orden' => $tempOrden]);
                 $swap->update(['orden' => $oldOrden]);
@@ -209,9 +192,9 @@ class ClaseController extends Controller
         $clases->transform(fn ($c) => $this->mapUrls($c));
 
         return response()->json([
-            'ok' => true,
+            'ok'      => true,
             'message' => 'Orden actualizado correctamente',
-            'clases' => $clases
+            'clases'  => $clases,
         ]);
     }
 
@@ -247,6 +230,7 @@ class ClaseController extends Controller
             $contenido->archivo = $contenido->url_publica;
             $contenido->miniatura_publica = $contenido->miniatura_publica;
         }
+
         // 👉 Portada de la clase = miniatura del primer video publicado
         $video = $clase->contenidos->firstWhere('tipo', 'video');
         if ($video && $video->miniatura_publica) {
@@ -257,5 +241,59 @@ class ClaseController extends Controller
         }
 
         return $clase;
+    }
+
+    /**
+     * 🧠 Helper: cargar curso con posible relación de edición activa
+     */
+    private function cargarCursoConEdicion($idcurso): Curso
+    {
+        return Curso::with('edicionActiva')->findOrFail($idcurso);
+    }
+
+    /**
+     * 🧠 Helper: ¿el curso permite editar estructura (crear/editar/reordenar)?
+     *
+     * - borrador o rechazado  ✅
+     * - publicado + edicionActiva.estado = en_edicion ✅
+     * - en_revision / oferta_enviada / pendiente_aceptacion ❌
+     */
+    private function cursoPermiteEditarEstructura(Curso $curso): bool
+    {
+        if (in_array($curso->estado, ['borrador', 'rechazado'])) {
+            return true;
+        }
+
+        // Si está publicado, miramos si hay una edición activa en estado "en_edicion"
+        $edicion = $curso->edicionActiva ?? $curso->edicion_activa ?? null;
+        $estadoEdicion = null;
+
+        if ($edicion) {
+            // por si viene como array o como modelo
+            if (is_array($edicion)) {
+                $estadoEdicion = $edicion['estado'] ?? null;
+            } else {
+                $estadoEdicion = $edicion->estado ?? null;
+            }
+        }
+
+        if ($curso->estado === 'publicado' && $estadoEdicion === 'en_edicion') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 🧠 Helper: ¿se puede eliminar una clase?
+     * Solo si curso y clase están en borrador o rechazado.
+     */
+    private function cursoPermiteEliminarClase(Curso $curso, ?string $estadoClase): bool
+    {
+        $estadoCurso = $curso->estado;
+        $estadoClase = $estadoClase ?? $estadoCurso;
+
+        return in_array($estadoCurso, ['borrador', 'rechazado'])
+            && in_array($estadoClase, ['borrador', 'rechazado']);
     }
 }

@@ -35,16 +35,16 @@ class ContenidoController extends Controller
     {
         $curso = Curso::findOrFail($idcurso);
 
-        // ❌ Bloqueo si curso no editable
+        // ❌ Bloqueo si curso no editable (revisión / oferta / pendiente).
+        // 👉 OJO: AQUÍ ya NO se bloquea por "publicado"
         if (in_array($curso->estado, [
-            'publicado',
             'en_revision',
             'oferta_enviada',
             'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
-                'message' => 'No puedes agregar contenidos mientras el curso esté en revisión o publicado'
+                'message' => 'No puedes agregar contenidos mientras el curso esté en revisión o pendiente de aceptación'
             ], 403);
         }
 
@@ -161,16 +161,16 @@ class ContenidoController extends Controller
     {
         $curso = Curso::findOrFail($idcurso);
 
-        // ❌ Bloqueo si curso no editable
+        // ❌ Bloqueo si curso no editable (revisión / oferta / pendiente).
+        // 👉 Aquí también sacamos "publicado" para permitir flujo de edición simple
         if (in_array($curso->estado, [
-            'publicado',
             'en_revision',
             'oferta_enviada',
             'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
-                'message' => 'No puedes modificar contenidos mientras el curso esté en revisión o publicado'
+                'message' => 'No puedes modificar contenidos mientras el curso esté en revisión o pendiente de aceptación'
             ], 403);
         }
 
@@ -288,16 +288,16 @@ class ContenidoController extends Controller
     {
         $curso = Curso::findOrFail($idcurso);
 
-        // ❌ Bloqueo si curso no editable
+        // ❌ Bloqueo si curso no editable (revisión / oferta / pendiente).
+        // 👉 Igual: "publicado" se permite, porque es parte del flujo de edición simple
         if (in_array($curso->estado, [
-            'publicado',
             'en_revision',
             'oferta_enviada',
             'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
-                'message' => 'No puedes reordenar contenidos mientras el curso esté en revisión o publicado'
+                'message' => 'No puedes reordenar contenidos mientras el curso esté en revisión o pendiente de aceptación'
             ], 403);
         }
 
@@ -349,21 +349,29 @@ class ContenidoController extends Controller
     {
         $curso = Curso::findOrFail($idcurso);
 
-        // ❌ Bloqueo si curso no editable
+        // ❌ Bloqueo si curso no editable (revisión / oferta / pendiente).
+        // 👉 Ya no se bloquea por "publicado": ahí aplicamos regla especial solo para video
         if (in_array($curso->estado, [
-            'publicado',
             'en_revision',
             'oferta_enviada',
             'pendiente_aceptacion'
         ])) {
             return response()->json([
                 'ok' => false,
-                'message' => 'No puedes eliminar contenidos mientras el curso esté en revisión o publicado'
+                'message' => 'No puedes eliminar contenidos mientras el curso esté en revisión o pendiente de aceptación'
             ], 403);
         }
 
         $contenido = Contenido::where('idclase', $idclase)
             ->findOrFail($idcontenido);
+
+        // 🚫 Regla especial: si el curso está publicado, NO se puede borrar el video principal.
+        if ($curso->estado === 'publicado' && $contenido->tipo === 'video') {
+            return response()->json([
+                'ok'      => false,
+                'message' => 'Este contenido es el video principal de una clase en un curso publicado. No puede eliminarse, solo editarse.'
+            ], 422);
+        }
 
         if ($contenido->url && Storage::disk('public')->exists($contenido->url)) {
             Storage::disk('public')->delete($contenido->url);
@@ -744,7 +752,7 @@ class ContenidoController extends Controller
             $q->where('idcontenido', '!=', $exceptId);
         }
 
-        // Soft deletes se excluyen por defecto en Eloquent
+        // Soft deletes se exclu    en por defecto en Eloquent
         return $q->exists();
     }
 }

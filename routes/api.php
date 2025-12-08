@@ -13,12 +13,16 @@ use App\Http\Controllers\Api\Auth\AuthController;
 use App\Http\Controllers\Api\Auth\PasswordResetController;
 use App\Http\Controllers\Api\Auth\RegisteredUserController;
 use App\Http\Controllers\Api\ClaseController;
+use App\Http\Controllers\Api\ClaseVistaController;
 use App\Http\Controllers\Api\ComentarioController;
 use App\Http\Controllers\Api\ContenidoController;
 use App\Http\Controllers\Api\CursoController;
+use App\Http\Controllers\Api\EstudianteAdminController;
 use App\Http\Controllers\Api\ExamenController;
 use App\Http\Controllers\Api\FacturaController;
 use App\Http\Controllers\Api\IntentoExamenController;
+use App\Http\Controllers\Api\JuegoCartasController;
+use App\Http\Controllers\Api\JuegoReciclajeController;
 use App\Http\Controllers\Api\LicenciaController;
 use App\Http\Controllers\Api\MatriculaController;
 use App\Http\Controllers\Api\ObservacionController;
@@ -30,10 +34,6 @@ use App\Http\Controllers\Api\SuscripcionController;
 use App\Http\Controllers\Api\TipoPagoController;
 use App\Http\Controllers\Api\TipoPlanController;
 use App\Http\Controllers\Api\UnidadController;
-use App\Http\Controllers\Api\EstudianteAdminController;
-use App\Http\Controllers\Api\JuegoCartasController;
-use App\Http\Controllers\Api\JuegoReciclajeController;
-use App\Http\Controllers\Api\ClaseVistaController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -44,6 +44,9 @@ use App\Http\Controllers\Api\JuegoController;
 use App\Http\Controllers\Api\CursoJuegoController;
 use App\Http\Controllers\Api\IntentoJuegoController;
 use App\Http\Controllers\Api\JuegoMecanografiaController;
+
+// 🆕 NOTIFICACIONES
+use App\Http\Controllers\Api\NotificacionController;
 
 // ======================================================
 // 🔹 HEALTH CHECK
@@ -109,13 +112,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/me/experience', [OnboardingController::class, 'experience'])->name('api.me.experience');
     Route::patch('/me/interests', [OnboardingController::class, 'interests'])->name('api.me.interests');
 
-    // PERFIL ESTUDIANTE
-    Route::get('/me/profile', [EditarProfileController::class, 'show'])->name('api.me.profile.show');
+    // PERFIL ESTUDIANTE (datos básicos del usuario)
+    Route::get('/me/profile', [ProfileController::class, 'show'])->name('api.me.profile.show');
     Route::patch('/me/profile', [EditarProfileController::class, 'update'])->name('api.me.profile.update');
     Route::post('/me/profile/foto', [EditarProfileController::class, 'updateFoto'])->name('api.me.profile.foto');
     Route::post('/me/profile/password', [EditarProfileController::class, 'changePassword'])->name('api.me.profile.password');
 
-    // ESTUDIANTES
+    // 🆕 DATOS ADICIONALES DEL ESTUDIANTE
+    Route::get('/me/estudiante', [EstudianteController::class, 'show'])->name('api.me.estudiante.show');
+    Route::patch('/me/estudiante', [EstudianteController::class, 'guardarNivel'])->name('api.me.estudiante.update');
+
+    // ESTUDIANTES (rutas antiguas)
     Route::post('/estudiantes/nivel', [EstudianteController::class, 'guardarNivel'])->name('api.estudiantes.nivel');
     Route::get('/estudiantes/me', [EstudianteController::class, 'show'])->name('api.estudiantes.me');
     Route::patch('/estudiantes/me', [EstudianteController::class, 'update'])->name('api.estudiantes.update');
@@ -130,6 +137,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/me/profile/profesor', [EditarProfileProfesorController::class, 'update'])->name('api.me.profesor.update');
     Route::post('/me/profile/profesor/foto', [EditarProfileProfesorController::class, 'updateFoto'])->name('api.me.profesor.foto');
     Route::post('/me/profile/profesor/password', [EditarProfileProfesorController::class, 'changePassword'])->name('api.me.profesor.password');
+
+    // 🔔 NOTIFICACIONES
+    Route::get('/notificaciones', [NotificacionController::class, 'index'])->name('api.notificaciones.index');
+    Route::get('/notificaciones/resumen', [NotificacionController::class, 'resumen'])->name('api.notificaciones.resumen');
+    Route::post('/notificaciones/leidas', [NotificacionController::class, 'marcarLeidas'])->name('api.notificaciones.leidas');
 
     // ======================================================
     // 🔹 ADMIN
@@ -163,6 +175,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/{idcurso}/conteo-clases', [AdminCursoController::class, 'contarClases'])->name('api.admin.cursos.conteoClases');
         });
 
+        // ✏️ EDICIONES DE CURSO
+        Route::patch(
+            '/curso-ediciones/{idcursoEdicion}/aprobar',
+            [AdminCursoController::class, 'aprobarEdicion']
+        )->name('api.admin.cursoEdiciones.aprobar');
+
+        Route::patch(
+            '/curso-ediciones/{idcursoEdicion}/cerrar',
+            [AdminCursoController::class, 'cerrarEdicion']
+        )->name('api.admin.cursoEdiciones.cerrar');
+
         // 💰 PAGOS A PROFESORES
         Route::prefix('pagos-profesores')->group(function () {
             Route::get('/', [PagoProfesorController::class, 'index'])->name('api.admin.pagos.index');
@@ -186,6 +209,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cursos/{idcurso}/oferta', [ProfesorCursoController::class, 'verOferta'])->name('api.profesor.cursos.verOferta');
         Route::patch('/cursos/{idcurso}/aceptar-oferta', [ProfesorCursoController::class, 'aceptarOferta'])->name('api.profesor.cursos.aceptarOferta');
         Route::post('/cursos/{idcurso}/rechazar-oferta', [ProfesorCursoController::class, 'rechazarOferta'])->name('api.profesor.cursos.rechazarOferta');
+
+        // ✏️ Profesor solicita edición
+        Route::post(
+            '/cursos/{idcurso}/solicitar-edicion',
+            [ProfesorCursoController::class, 'solicitarEdicion']
+        )->name('api.profesor.cursos.solicitarEdicion');
+
+        // ✅ Profesor finaliza edición
+        Route::patch(
+            '/curso-ediciones/{idcursoEdicion}/finalizar',
+            [ProfesorCursoController::class, 'finalizarEdicion']
+        )->name('api.profesor.cursoEdiciones.finalizar');
     });
 
     // ======================================================
@@ -197,7 +232,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cursos.unidades.clases', ClaseController::class);
     Route::apiResource('cursos.unidades.clases.contenidos', ContenidoController::class);
 
-    // 👇 Extras para contenidos (no están en apiResource)
+    // Extras para contenidos
     Route::patch(
         '/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos/{idcontenido}/orden',
         [ContenidoController::class, 'cambiarOrden']
@@ -262,9 +297,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cursos/{idcurso}/desuscribir', [MatriculaController::class, 'desuscribir']);
     Route::post('/matriculas/{idmatricula}/clases/{idclase}/completar', [ProgresoClaseController::class, 'completar'])->name('api.progreso.completar');
 
-    // ======================================================
-    // 🎞️ PROGRESO DE VIDEOS (ClaseVistaController)
-    // ======================================================
+    // 🎞️ PROGRESO DE VIDEOS
     Route::patch('/vistas', [ClaseVistaController::class, 'updateProgreso'])->name('api.vistas.update');
     Route::get('/vistas/{idcontenido}', [ClaseVistaController::class, 'getProgreso'])->name('api.vistas.get');
 
@@ -296,39 +329,40 @@ Route::middleware('auth:sanctum')->group(function () {
         // Catálogo base
         Route::get('/', [JuegoController::class, 'index'])->name('api.juegos.index');
         Route::get('/{idjuego}', [JuegoController::class, 'show'])->name('api.juegos.show');
-        Route::post('/', [JuegoController::class, 'store'])->name('api.juegos.store'); // 403 intencional (si aplica)
+        Route::post('/', [JuegoController::class, 'store'])->name('api.juegos.store');
         Route::put('/{idjuego}', [JuegoController::class, 'update'])->name('api.juegos.update');
-        Route::delete('/{idjuego}', [JuegoController::class, 'destroy'])->name('api.juegos.destroy'); // 403 intencional
+        Route::delete('/{idjuego}', [JuegoController::class, 'destroy'])->name('api.juegos.destroy');
 
-        // Intentos (por instancia curso_juego)
+        // Intentos
         Route::get('/intentos/mis', [IntentoJuegoController::class, 'index'])->name('api.juegos.intentos.index');
         Route::get('/intentos/{idintento}', [IntentoJuegoController::class, 'show'])->name('api.juegos.intentos.show');
         Route::post('/curso-juego/{idcursojuego}/intentos', [IntentoJuegoController::class, 'store'])->name('api.juegos.intentos.store');
         Route::get('/curso-juego/{idcursojuego}/ranking', [IntentoJuegoController::class, 'ranking'])->name('api.juegos.intentos.ranking');
 
-        // 🔄 Atajos por UNIDAD (listar/asignar/crear)
-        Route::get('/unidad/{idunidad}', [CursoJuegoController::class, 'index'])->name('api.juegos.unidad.index');            // listado de juegos de una unidad
-        Route::post('/unidad/{idunidad}', [CursoJuegoController::class, 'store'])->name('api.juegos.unidad.store');           // crear juego en unidad (con imagen/tema)
-        Route::post('/unidad/{idunidad}/asignar', [CursoJuegoController::class, 'asignarJuegoUnidad'])->name('api.juegos.unidad.asignar'); // asignar juego base simple
+        // Atajos por UNIDAD
+        Route::get('/unidad/{idunidad}', [CursoJuegoController::class, 'index'])->name('api.juegos.unidad.index');
+        Route::post('/unidad/{idunidad}', [CursoJuegoController::class, 'store'])->name('api.juegos.unidad.store');
+        Route::post('/unidad/{idunidad}/asignar', [CursoJuegoController::class, 'asignarJuegoUnidad'])->name('api.juegos.unidad.asignar');
 
-        // CRUD de una instancia (por idcursojuego)
+        // CRUD instancia curso_juego
         Route::get('/curso-juego/{idcursojuego}', [CursoJuegoController::class, 'show'])->name('api.juegos.curso.show');
         Route::put('/curso-juego/{idcursojuego}', [CursoJuegoController::class, 'update'])->name('api.juegos.curso.update');
         Route::delete('/curso-juego/{idcursojuego}', [CursoJuegoController::class, 'destroy'])->name('api.juegos.curso.destroy');
     });
 
-    // Configuración y datos por curso_juego (incluye mecanografía y cartas)
+    // Configuración curso_juego (fuera del /juegos para usar URLs cortas)
     Route::prefix('curso-juego')->group(function () {
-        // Config general (portada/nivel/activo)
         Route::get('/{idcursojuego}', [CursoJuegoController::class, 'show'])->name('api.cursojuego.show');
         Route::put('/{idcursojuego}', [CursoJuegoController::class, 'update'])->name('api.cursojuego.update');
 
-        // ⚙️ ESTADO Y LIMPIEZA (Soft delete)
+        // 🟥 NUEVAS: baja y reactivar (las que usa tu front)
         Route::patch('/{idcursojuego}/baja', [CursoJuegoController::class, 'darDeBaja'])->name('api.cursojuego.baja');
         Route::patch('/{idcursojuego}/reactivar', [CursoJuegoController::class, 'reactivar'])->name('api.cursojuego.reactivar');
+
+        // (si tienes implementado limpiarAntiguos en el controlador)
         Route::delete('/limpiar', [CursoJuegoController::class, 'limpiarAntiguos'])->name('api.cursojuego.limpiar');
 
-        // 🧠 MECANOGRAFÍA (profesor)
+        // MECANOGRAFÍA
         Route::get('/{idcursojuego}/mecanografia', [JuegoMecanografiaController::class, 'listarPalabras'])
             ->name('api.cursojuego.mecanografia.listar');
         Route::post('/{idcursojuego}/guardar', [JuegoMecanografiaController::class, 'guardarPalabras'])
@@ -338,13 +372,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/mecanografia/{idpalabra}', [JuegoMecanografiaController::class, 'destroy'])
             ->name('api.cursojuego.mecanografia.destroy');
 
-        // ♣️ CARTAS (profesor)
+        // CARTAS
         Route::get('/{idcursojuego}/cartas', [JuegoCartasController::class, 'listarCartas'])->name('api.cursojuego.cartas.listar');
         Route::post('/{idcursojuego}/cartas', [JuegoCartasController::class, 'guardarCarta'])->name('api.cursojuego.cartas.guardar');
         Route::put('/carta/{idpar}', [JuegoCartasController::class, 'updateCarta'])->name('api.cursojuego.cartas.update');
         Route::delete('/carta/{idpar}', [JuegoCartasController::class, 'eliminarCarta'])->name('api.cursojuego.cartas.destroy');
 
-        // ♻️ RECICLAJE (profesor)
+        // RECICLAJE / CLASIFICA OPERACIONES
         Route::get('/{idcursojuego}/reciclaje', [JuegoReciclajeController::class, 'listarItems'])
             ->name('api.cursojuego.reciclaje.listar');
         Route::post('/{idcursojuego}/reciclaje', [JuegoReciclajeController::class, 'guardarItem'])
@@ -355,13 +389,13 @@ Route::middleware('auth:sanctum')->group(function () {
             ->name('api.cursojuego.reciclaje.destroy');
     });
 
-    // 🃏 EJECUCIÓN DEL JUEGO DE CARTAS (estudiante)
+    // 🃏 Juego de cartas (ejecución estudiante)
     Route::prefix('juego-cartas')->group(function () {
         Route::get('/{idcursojuego}', [JuegoCartasController::class, 'listar'])->name('api.juego-cartas.listar');
         Route::post('/guardar-intento', [JuegoCartasController::class, 'guardarIntento'])->name('api.juego-cartas.guardar-intento');
     });
 
-    // ♻️ EJECUCIÓN DEL JUEGO DE RECICLAJE (estudiante)
+    // ♻️ Juego de reciclaje / clasifica operaciones (ejecución estudiante)
     Route::prefix('juego-reciclaje')->group(function () {
         Route::get('/{idcursojuego}', [JuegoReciclajeController::class, 'listar'])->name('api.juego-reciclaje.listar');
         Route::post('/guardar-intento', [JuegoReciclajeController::class, 'guardarIntento'])->name('api.juego-reciclaje.guardar-intento');
@@ -380,12 +414,12 @@ Route::get('/tipos-pagos', [TipoPagoController::class, 'index'])->name('api.tipo
 Route::get('/tipos-pagos/{idpago}', [TipoPagoController::class, 'show'])->name('api.tipos-pagos.show');
 Route::get('/cursos/{idcurso}/resenas', [ResenaController::class, 'listarPorCurso'])->name('api.cursos.resenas.index');
 
-// ✅ Ruta pública OPCIONAL para catálogo de contenidos publicados (si quieres previews sin login)
+// Previews públicos de contenidos
 Route::get(
     '/catalogo/cursos/{idcurso}/unidades/{idunidad}/clases/{idclase}/contenidos',
     [ContenidoController::class, 'catalogo']
 )->name('api.catalogo.contenidos');
 
 Route::get('/stream/{path}', [ContenidoController::class, 'stream'])
-  ->where('path', '.*')
-  ->name('media.stream');
+    ->where('path', '.*')
+    ->name('media.stream');

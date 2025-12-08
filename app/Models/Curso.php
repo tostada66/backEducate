@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\CursoEdicion;
 
 class Curso extends Model
 {
@@ -24,12 +25,12 @@ class Curso extends Model
         'estado',
         'promedio_resenas',
         'total_resenas',
-        'duracion_total', // ⚠️ NUEVO: duración física
+        'duracion_total', // duración física total del curso
     ];
 
     protected $casts = [
         'duracion_total' => 'integer',
-        'deleted_at' => 'datetime',
+        'deleted_at'     => 'datetime',
     ];
 
     /* ======================================================
@@ -57,10 +58,10 @@ class Curso extends Model
         return $this->hasManyThrough(
             Clase::class,
             Unidad::class,
-            'idcurso',
-            'idunidad',
-            'idcurso',
-            'idunidad'
+            'idcurso',   // FK en unidades
+            'idunidad',  // FK en clases
+            'idcurso',   // PK en cursos
+            'idunidad'   // PK en unidades
         );
     }
 
@@ -102,12 +103,40 @@ class Curso extends Model
     }
 
     /* ======================================================
+     * ✏️ RELACIONES PARA SOLICITUDES DE EDICIÓN
+     * =====================================================*/
+
+    public function ediciones()
+    {
+        return $this->hasMany(CursoEdicion::class, 'idcurso', 'idcurso');
+    }
+
+    /**
+     * Relación hasOne: edición activa
+     * Cuenta estados:
+     *  - pendiente   (profe pidió edición)
+     *  - en_edicion  (admin aprobó y profe puede editar)
+     *  - en_revision (profe terminó cambios y los mandó a revisión)
+     */
+    public function edicionActiva()
+    {
+        return $this->hasOne(CursoEdicion::class, 'idcurso', 'idcurso')
+            ->whereIn('estado', ['pendiente', 'en_edicion', 'en_revision', 'cerrada']) // 👈 agregado 'cerrada'
+            ->latest();
+    }
+
+    public function tieneEdicionActiva(): bool
+    {
+        return $this->edicionActiva()->exists();
+    }
+
+    /* ======================================================
      * 🔁 RECÁLCULO DE DURACIÓN
      * =====================================================*/
 
     public function recalcularDuracion()
     {
-        // 1️⃣ Sumar duración física de todas las unidades
+        // Sumar duración física de todas las unidades
         $this->duracion_total = $this->unidades()->sum('duracion_total');
         $this->saveQuietly();
     }
@@ -121,9 +150,6 @@ class Curso extends Model
         // Cuando este curso cambia, si cambia estado, lo propagamos
         static::updated(function (Curso $curso) {
 
-            /* ------------------------------
-             *  🔁 PROPAGAR ESTADO HIJO → UNIT → CLASE → CONTENIDO
-             * ------------------------------*/
             if ($curso->wasChanged('estado')) {
 
                 $estado = $curso->estado;
@@ -137,16 +163,12 @@ class Curso extends Model
                     $idsClases = Clase::whereIn('idunidad', $idsUnidades)->pluck('idclase');
 
                     if ($idsClases->isNotEmpty()) {
-
                         Clase::whereIn('idclase', $idsClases)->update(['estado' => $estado]);
                         Contenido::whereIn('idclase', $idsClases)->update(['estado' => $estado]);
                     }
                 }
             }
         });
-
-        // Cuando se guarde o elimine una unidad ya lo recalcula Unidad->Curso
-        // Así que Curso ya NO necesita más eventos aquí.
     }
 
     /* ======================================================

@@ -14,6 +14,8 @@ class Estudiante extends Model
     protected $fillable = [
         'idusuario',
         'nivelacademico',
+        'escuela',
+        'bio',
     ];
 
     /* ───────────────────────────────

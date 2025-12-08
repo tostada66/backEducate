@@ -16,12 +16,11 @@ class JuegoReciclajeItem extends Model
 
     protected $fillable = [
         'idcursojuego', // 🔗 Relación con curso_juego
-        'nombre',       // Ej: 'Botella de plástico'
-        'tipo',         // Ej: 'plástico', 'papel', 'vidrio', 'orgánico'
-        'imagen',
+        'tipo',         // Ej: 'suma', 'resta', 'multiplicacion', 'division', 'fraccion', 'potencia'
+        'imagen',       // ruta del ícono / ficha
         'activo',
-        'nivel',        // (opcional, si agregas dificultad)
-        'descripcion',  // (opcional, mensaje educativo)
+        // 'nivel',      // (opcional, si algún día agregas dificultad)
+        // 'descripcion' // (opcional, si algún día agregas texto educativo)
     ];
 
     protected $casts = [
@@ -48,7 +47,7 @@ class JuegoReciclajeItem extends Model
         return $query->where('activo', true);
     }
 
-    // 🔹 Filtrar por tipo de residuo
+    // 🔹 Filtrar por tipo de operación
     public function scopeTipo($query, $tipo)
     {
         return $query->where('tipo', $tipo);
