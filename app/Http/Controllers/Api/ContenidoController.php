@@ -113,7 +113,7 @@ class ContenidoController extends Controller
         $contenido->save();
 
         // ⚙️ Procesamiento de video: duracion + sprites + VTT
-        if ($contenido->tipo === 'video') {
+        if ($contenido->tipo === 'video' && env('ENABLE_FFMPEG', false)) {
             // Completar duración si viene vacía
             if (empty($contenido->duracion) && $contenido->url) {
                 $contenido->duracion = $this->probeDuration($contenido->url);
@@ -253,7 +253,7 @@ class ContenidoController extends Controller
         $contenido->save();
 
         // Si ahora es video, re-procesar (si se cambió archivo o no hay VTT)
-        if ($contenido->tipo === 'video' && $contenido->url) {
+        if ($contenido->tipo === 'video' && $contenido->url && env('ENABLE_FFMPEG', false)) {
             if (empty($contenido->duracion)) {
                 $contenido->duracion = $this->probeDuration($contenido->url);
             }
@@ -635,7 +635,7 @@ class ContenidoController extends Controller
         $cmd1 = $this->ff('ffmpeg',
             '-hide_banner -loglevel error -y ' .
             '-i ' . escapeshellarg($absVideo) . ' ' .
-            '-vf ' . escapeshellarg("fps=1/{$every},scale={$tileW}:{$tileH}") . ' ' .
+            '-vf ' . escapeshellarg("fps=1/{$every},cale={$tileW}:{$tileH}") . ' ' .
             escapeshellarg($tmpFramesDir . DIRECTORY_SEPARATOR . 'thumb%05d.png')
         );
 
