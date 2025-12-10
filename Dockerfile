@@ -1,5 +1,5 @@
-# 1) Imagen base con PHP 8.2 (modo CLI)
-FROM php:8.2-cli
+# 1) Imagen base con PHP 8.3 (modo CLI)
+FROM php:8.3-cli
 
 # 2) Instalar paquetes del sistema + extensiones PHP + ffmpeg
 RUN apt-get update && apt-get install -y \
