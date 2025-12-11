@@ -19,10 +19,10 @@ RUN apt-get update && apt-get install -y \
     gd \
  && rm -rf /var/lib/apt/lists/*
 
-# 2.1) Configurar límites de PHP para subidas y POST
+# 2.1) Configurar límites de PHP para subidas y POST (300 MB)
 RUN { \
-    echo "upload_max_filesize=64M"; \
-    echo "post_max_size=64M"; \
+    echo "upload_max_filesize=300M"; \
+    echo "post_max_size=320M"; \
     echo "max_execution_time=300"; \
     echo "memory_limit=512M"; \
 } > /usr/local/etc/php/conf.d/uploads.ini
@@ -51,7 +51,7 @@ EXPOSE 10000
 
 # 10) Comando al arrancar:
 #     - Ejecuta migraciones
-#     - Ejecuta seeders
+#     - Ejecuta seeders (ya son idempotentes con updateOrCreate/upsert)
 #     - Levanta el servidor Laravel
 CMD php artisan migrate --force \
     && php artisan db:seed --force \
