@@ -2,41 +2,82 @@
 
 return [
 
-    // Rutas donde aplica CORS (API + cookie CSRF si algún día usas Sanctum SPA)
-    'paths' => ['api/*', 'login', 'logout', 'sanctum/csrf-cookie'],
+    /*
+    |--------------------------------------------------------------------------
+    | Paths donde aplica CORS
+    |--------------------------------------------------------------------------
+    |
+    | Para evitar problemas raros, aplicamos CORS a TODAS las rutas.
+    | Más adelante, si quieres, se puede restringir a 'api/*'.
+    |
+    */
 
-    'allowed_methods' => ['*'],
+    'paths' => ['*'],  // <- antes tenías solo 'api/*' etc.
 
-    // 🔒 Agrega tus orígenes reales de DEV (incluye 9001) y los de PROD
-    'allowed_origins' => [
-        'capacitor://localhost',     // App Android/iOS (Capacitor WebView)
-        'http://localhost',          // Dev
-        'http://127.0.0.1',          // Dev
+    /*
+    |--------------------------------------------------------------------------
+    | Métodos permitidos
+    |--------------------------------------------------------------------------
+    */
 
-        // Quasar dev (puertos típicos)
-        'http://localhost:9000',
-        'http://127.0.0.1:9000',
-        'http://localhost:9001',     // 👈 tu caso actual
-        'http://127.0.0.1:9001',     // 👈 tu caso actual
+    'allowed_methods' => ['*'], // GET, POST, PUT, DELETE, OPTIONS, etc.
 
-        // Si usas Vite puro alguna vez:
-        // 'http://localhost:5173',
-        // 'http://127.0.0.1:5173',
+    /*
+    |--------------------------------------------------------------------------
+    | Orígenes permitidos
+    |--------------------------------------------------------------------------
+    |
+    | Mientras estás en desarrollo / pruebas, lo dejamos en '*'.
+    | Luego se puede cambiar a una lista:
+    |   - 'http://localhost:9000'
+    |   - 'https://backeducate.onrender.com'
+    |   - etc.
+    */
 
-        // Producción (ejemplos; cámbialos por los tuyos)
-        // 'https://app.tu-dominio.com',
-        // 'https://api.tu-dominio.com',
-    ],
+    'allowed_origins' => ['*'],
 
-    // Opcional: permitir tu LAN en dev (192.168.x.x:puerto)
+    /*
+    |--------------------------------------------------------------------------
+    | Patrones de orígenes permitidos
+    |--------------------------------------------------------------------------
+    */
+
     'allowed_origins_patterns' => [
-        '#^http://192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$#',
+        // Si luego quieres limitar por IP de tu LAN, podrías usar un regex aquí.
     ],
 
-    'allowed_headers'   => ['*'],
-    'exposed_headers'   => ['Authorization'],
-    'max_age'           => 86400,
+    /*
+    |--------------------------------------------------------------------------
+    | Headers permitidos
+    |--------------------------------------------------------------------------
+    */
 
-    // ❗ Usas Bearer tokens (no cookies) → debe ser false
+    'allowed_headers' => ['*'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Headers expuestos al navegador
+    |--------------------------------------------------------------------------
+    */
+
+    'exposed_headers' => ['Authorization'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tiempo en cache del preflight
+    |--------------------------------------------------------------------------
+    */
+
+    'max_age' => 86400,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cookies / credenciales
+    |--------------------------------------------------------------------------
+    |
+    | Estás usando Bearer Token en Authorization, NO cookies,
+    | así que esto debe ir en false.
+    */
+
     'supports_credentials' => false,
 ];
