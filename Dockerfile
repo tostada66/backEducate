@@ -1,7 +1,7 @@
 # 1) Imagen base con PHP 8.3 (modo CLI)
 FROM php:8.3-cli
 
-# 2) Paquetes del sistema + extensiones PHP + ffmpeg
+# 2) Paquetes del sistema + extensiones PHP + ffmpeg + Postgres
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -11,13 +11,13 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libpq-dev \
-  && docker-php-ext-install \
+ && docker-php-ext-install \
     pdo \
     pdo_mysql \
     pdo_pgsql \
     zip \
     gd \
-  && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
 # 3) Instalar Composer (desde la imagen oficial)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -41,5 +41,10 @@ RUN php artisan storage:link || true
 ENV PORT=10000
 EXPOSE 10000
 
-# 10) Comando al arrancar
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT}
+# 10) Comando al arrancar:
+#     - Ejecuta migraciones
+#     - Ejecuta seeders
+#     - Levanta el servidor Laravel
+CMD php artisan migrate --force \
+    && php artisan db:seed --force \
+    && php artisan serve --host=0.0.0.0 --port=${PORT}
