@@ -10,14 +10,14 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
-    libpq-dev \               # <-- para Postgres
- && docker-php-ext-install \
+    libpq-dev \
+  && docker-php-ext-install \
     pdo \
-    pdo_mysql \               # la puedes dejar por si acaso
-    pdo_pgsql \               # <-- EXTENSIÓN PARA PGSQL
+    pdo_mysql \
+    pdo_pgsql \
     zip \
     gd \
- && rm -rf /var/lib/apt/lists/*
+  && rm -rf /var/lib/apt/lists/*
 
 # 3) Instalar Composer (desde la imagen oficial)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
