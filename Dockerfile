@@ -19,6 +19,14 @@ RUN apt-get update && apt-get install -y \
     gd \
  && rm -rf /var/lib/apt/lists/*
 
+# 2.1) Configurar límites de PHP para subidas y POST
+RUN { \
+    echo "upload_max_filesize=64M"; \
+    echo "post_max_size=64M"; \
+    echo "max_execution_time=300"; \
+    echo "memory_limit=512M"; \
+} > /usr/local/etc/php/conf.d/uploads.ini
+
 # 3) Instalar Composer (desde la imagen oficial)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
