@@ -1,7 +1,7 @@
 # 1) Imagen base con PHP 8.3 (modo CLI)
 FROM php:8.3-cli
 
-# 2) Instalar paquetes del sistema + extensiones PHP + ffmpeg
+# 2) Paquetes del sistema + extensiones PHP + ffmpeg
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -10,32 +10,36 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
- && docker-php-ext-install pdo pdo_mysql zip gd \
+    libpq-dev \               # <-- para Postgres
+ && docker-php-ext-install \
+    pdo \
+    pdo_mysql \               # la puedes dejar por si acaso
+    pdo_pgsql \               # <-- EXTENSIÓN PARA PGSQL
+    zip \
+    gd \
  && rm -rf /var/lib/apt/lists/*
 
-# 3) Instalar Composer (copiado desde la imagen oficial)
+# 3) Instalar Composer (desde la imagen oficial)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# 4) Carpeta de trabajo dentro del contenedor
+# 4) Carpeta de trabajo
 WORKDIR /app
 
-# 5) Copiar archivos base de Composer primero (para cachear mejor)
+# 5) Copiar composer.* primero (mejor cache)
 COPY composer.json composer.lock ./
 
 # 6) Instalar dependencias PHP
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
-# 7) Copiar TODO el proyecto Laravel al contenedor
+# 7) Copiar TODO el proyecto
 COPY . .
 
-# 8) Crear enlace simbólico de storage (si falla, no rompe el build)
+# 8) Enlace simbólico storage (si falla, no rompe build)
 RUN php artisan storage:link || true
 
-# 9) Puerto donde escuchará Laravel dentro del contenedor
+# 9) Puerto interno
 ENV PORT=10000
 EXPOSE 10000
 
-# 🔚 10) Comando al arrancar el contenedor:
-#    - Ejecuta migraciones
-#    - Levanta php artisan serve en 0.0.0.0:PORT
+# 10) Comando al arrancar
 CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT}
