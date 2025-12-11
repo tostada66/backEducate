@@ -15,21 +15,22 @@ class TipoPagoSeeder extends Seeder
             [
                 'nombre' => 'QR',
                 'descripcion' => 'Pago mediante código QR escaneado desde la app bancaria.',
-                'created_at' => $now,
-                'updated_at' => $now,
             ],
             [
                 'nombre' => 'Tarjeta',
                 'descripcion' => 'Pago con tarjeta de débito o crédito.',
-                'created_at' => $now,
-                'updated_at' => $now,
             ],
         ];
 
-        DB::table('tipos_pagos')->upsert(
-            $rows,
-            ['nombre'], // clave única
-            ['descripcion', 'updated_at']
-        );
+        foreach ($rows as $row) {
+            DB::table('tipos_pagos')->updateOrInsert(
+                ['nombre' => $row['nombre']], // criterio de búsqueda
+                [
+                    'descripcion' => $row['descripcion'],
+                    'updated_at'  => $now,
+                    'created_at'  => $now,
+                ]
+            );
+        }
     }
 }
