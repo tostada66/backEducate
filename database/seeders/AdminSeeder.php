@@ -17,18 +17,17 @@ class AdminSeeder extends Seeder
             ['descripcion' => 'Administrador del sistema']
         );
 
-        // 2. Creamos el usuario administrador
+        // 2. Creamos o actualizamos el usuario administrador (sin duplicar)
         Usuario::updateOrCreate(
-            ['correo' => 'admin@plataforma.com'], // condición
+            ['correo' => 'admin@gmail.com'], // condición única
             [
-                'idrol' => $rolAdmin->idrol,
-                'nombres' => 'Admin',
-                'apellidos' => 'Admin',
-                'correo' => 'admin@gmail.com',
+                'idrol'         => $rolAdmin->idrol,
+                'nombres'       => 'Admin',
+                'apellidos'     => 'Admin',
                 'nombreusuario' => 'admin',
-                'telefono' => '77777777',
-                'password' => Hash::make('123456789'), // ⚠️ cámbialo luego en producción
-                'estado' => 1, // activo
+                'telefono'      => '77777777',
+                'password'      => Hash::make('123456789'),
+                'estado'        => 1,
             ]
         );
     }
